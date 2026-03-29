@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Inbox,
@@ -17,7 +18,8 @@ import {
   Clock,
   CheckCheck,
 } from "lucide-react";
-import { useGetSyncStatus } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGetSyncStatus, getGetEmailsQueryKey, getGetInboxSummaryQueryKey } from "@workspace/api-client-react";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -32,13 +34,27 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const [location] = useLocation();
   const { triggerSync } = useEmailActions();
   const { user, isConnected, connectGmail, logout } = useAuth();
+  const queryClient = useQueryClient();
+  const prevSyncStatus = useRef<string | undefined>(undefined);
 
   const { data: syncStatus } = useGetSyncStatus({
     query: {
+      // Poll every 2s while syncing, every 30s otherwise (catches server-side syncs too)
       refetchInterval: (data) =>
-        data?.state?.data?.status === "syncing" ? 2000 : false,
+        data?.state?.data?.status === "syncing" ? 2000 : 30000,
     },
   });
+
+  // When sync transitions syncing → idle, refresh the email list so new emails appear
+  useEffect(() => {
+    const current = syncStatus?.status;
+    const prev = prevSyncStatus.current;
+    if (prev === "syncing" && current === "idle") {
+      queryClient.invalidateQueries({ queryKey: getGetEmailsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetInboxSummaryQueryKey() });
+    }
+    prevSyncStatus.current = current;
+  }, [syncStatus?.status, queryClient]);
 
   const navItems = [
     { icon: Inbox, label: "Smart Inbox", href: "/" },

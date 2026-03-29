@@ -804,7 +804,15 @@ export default function Inbox() {
   }, [searchInput]);
 
   const { data: response, isLoading } = useGetEmails(
-    debouncedQ ? { q: debouncedQ } : undefined
+    debouncedQ ? { q: debouncedQ } : undefined,
+    {
+      query: {
+        // Refresh the list every 60s so new emails appear without manual sync
+        refetchInterval: 60_000,
+        // Keep previous data while refetching (no flash of empty state)
+        placeholderData: (prev) => prev,
+      },
+    }
   );
   const { logAction } = useEmailActions();
   const queryClient = useQueryClient();

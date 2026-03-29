@@ -25,8 +25,9 @@ export function useEmailActions() {
   const triggerSync = useTriggerSync({
     mutation: {
       onSuccess: () => {
+        // Only refresh sync status — the actual Gmail fetch is async on the server.
+        // Email list invalidation happens in Sidebar once sync status goes idle.
         queryClient.invalidateQueries({ queryKey: getGetSyncStatusQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetEmailsQueryKey() });
       }
     }
   });
