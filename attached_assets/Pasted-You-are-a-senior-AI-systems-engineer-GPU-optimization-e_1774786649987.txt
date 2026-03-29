@@ -1,0 +1,236 @@
+You are a senior AI systems engineer, GPU optimization expert, and full-stack developer.
+
+Your task is to build a production-grade AI reply system integrated with Gmail API, using a hybrid AI architecture (local GPU + cloud fallback), with automatic model selection to maximize NVIDIA GPU utilization.
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Build an intelligent reply system that:
+
+* Automatically generates replies for emails
+* Uses local GPU (NVIDIA) as primary compute
+* Selects the best available local model dynamically
+* Falls back to cloud only when necessary
+* Learns user tone and improves over time
+* Allows user to edit and send replies via Gmail API
+
+---
+
+# 🧠 SYSTEM OVERVIEW
+
+Email → Decision Engine → Reply Engine → UI → Send via Gmail API
+
+---
+
+# ⚙️ STEP 1: LOCAL MODEL DISCOVERY (CRITICAL)
+
+Implement a module that:
+
+* Detects available local models (Ollama or vLLM)
+* Benchmarks them based on:
+
+  * latency
+  * token/sec
+  * VRAM usage
+* Selects best model for reply generation
+
+Example:
+
+function selectBestLocalModel(models) {
+return models.sort((a, b) =>
+b.tokens_per_sec - a.tokens_per_sec
+)[0]
+}
+
+Supported models:
+
+* llama3 (fast, good)
+* mistral (lighter, faster)
+* mixtral (better reasoning)
+* Llama-3-8B via vLLM (preferred)
+
+---
+
+# ⚡ STEP 2: GPU UTILIZATION
+
+* Ensure CUDA is enabled
+* Batch multiple reply requests
+* Run inference via vLLM (preferred) or Ollama
+* Monitor GPU usage dynamically
+
+---
+
+# 🧠 STEP 3: REPLY ENGINE
+
+Implement:
+
+generateReply(email, memory, priority)
+
+Prompt must include:
+
+* Email content
+* User tone
+* Past replies
+* Context
+
+Example prompt:
+
+"You are an AI assistant. Write a reply to the following email.
+
+Tone: professional/friendly
+Context: previous replies
+Email: ..."
+
+---
+
+# ⚡ STEP 4: HYBRID MODEL ROUTING
+
+Rules:
+
+* priority < 70 → local GPU
+* priority > 70 → local GPU (if capable)
+* priority > 85 → cloud LLM (for best quality)
+
+Fallback:
+
+* If GPU overloaded → cloud
+* If cloud fails → local
+
+---
+
+# 🧠 STEP 5: MULTI-REPLY GENERATION
+
+Generate:
+
+* Short reply
+* Detailed reply
+* Friendly reply
+
+Return array of options
+
+---
+
+# ⚡ STEP 6: QUEUE INTEGRATION
+
+Add queue:
+
+reply-queue
+
+Worker:
+
+* pulls email
+* generates reply via local GPU
+* stores result in DB
+
+---
+
+# 🧠 STEP 7: DATABASE
+
+Create table:
+
+replies:
+
+* id
+* email_id
+* user_id
+* content
+* model_used
+* created_at
+
+---
+
+# ⚡ STEP 8: FRONTEND
+
+Add:
+
+ReplyBox component:
+
+* shows AI-generated replies
+* editable textarea
+* buttons:
+
+  * Send
+  * Regenerate
+  * Change tone
+
+---
+
+# 🧠 STEP 9: SEND EMAIL VIA GMAIL API
+
+Implement:
+
+sendReply(emailId, replyContent)
+
+Use Gmail API:
+
+gmail.users.messages.send
+
+Include:
+
+* threadId
+* proper headers (In-Reply-To)
+
+---
+
+# ⚡ STEP 10: LEARNING LOOP
+
+When user edits reply:
+
+* store edited version
+* update user tone profile
+* improve future replies
+
+---
+
+# 🧠 STEP 11: STREAMING RESPONSES
+
+* Stream reply tokens to UI
+* Show typing effect
+* Do not wait for full response
+
+---
+
+# ⚡ STEP 12: PERFORMANCE OPTIMIZATION
+
+* Batch reply generation
+* Cache replies
+* Avoid duplicate generation
+* Use async queue workers
+
+---
+
+# 🧠 OUTPUT FORMAT
+
+Return:
+
+{
+replies: [
+{ type: "short", content: "...", model: "local" },
+{ type: "detailed", content: "...", model: "local/cloud" }
+],
+confidence: 0-1
+}
+
+---
+
+# 🚫 CONSTRAINTS
+
+* ALWAYS prioritize GPU usage
+* NEVER send all requests to cloud
+* NEVER block UI
+* ALWAYS use queue-based processing
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a system that:
+
+* Writes replies like a human assistant
+* Uses GPU at maximum efficiency
+* Adapts to user style
+* Feels instant and intelligent
+* Outperforms Gmail Smart Reply
+
+You are building the most advanced AI-powered reply system ever created.

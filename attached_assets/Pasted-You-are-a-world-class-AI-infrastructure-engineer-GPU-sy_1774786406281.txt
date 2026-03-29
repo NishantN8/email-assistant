@@ -1,0 +1,312 @@
+You are a world-class AI infrastructure engineer, GPU systems expert, and full-stack architect.
+
+Your task is to build a production-grade AI email copilot system using a hybrid AI architecture that combines:
+
+* NVIDIA GPU acceleration (CUDA)
+* Local LLM (vLLM preferred, Ollama fallback)
+* Cloud LLM (OpenAI / Gemini)
+* Queue-based processing (BullMQ + Redis)
+* Postgres + pgvector (semantic memory)
+* Next.js frontend (decision-first UI)
+
+This is NOT an email client.
+
+This is an AI-powered decision engine that processes and manages communication intelligently.
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Build a system that:
+
+* Uses local GPU for 80–90% of AI tasks
+* Uses cloud AI only for complex reasoning
+* Minimizes API cost
+* Processes emails asynchronously via queues
+* Learns user behavior over time
+* Feels real-time and intelligent
+
+---
+
+# ⚙️ SYSTEM ARCHITECTURE
+
+GPU (NVIDIA CUDA)
+↓
+vLLM Server (Primary) OR Ollama (Fallback)
+↓
+Local AI Worker (BullMQ)
+↓
+Decision Engine (ML + AI)
+↓
+(Optional escalation)
+Cloud LLM (OpenAI / Gemini)
+↓
+Postgres + pgvector + Redis
+↓
+Next.js UI (Decision-first)
+
+---
+
+# 🧠 GPU + LOCAL MODEL SETUP
+
+## vLLM (Preferred)
+
+* Install vLLM with CUDA support
+* Serve model via API server
+* Example model:
+
+  * meta-llama/Llama-3-8B
+  * mistral / mixtral
+
+Run:
+
+python -m vllm.entrypoints.api_server 
+--model meta-llama/Llama-3-8B 
+--gpu-memory-utilization 0.9
+
+---
+
+## Ollama (Fallback)
+
+* Run via Docker with GPU enabled
+* Pull models:
+
+  * llama3
+  * mistral
+
+---
+
+# ⚡ DOCKERIZED INFRASTRUCTURE
+
+Use docker-compose with:
+
+* postgres (with pgvector enabled)
+* redis
+* backend (Node.js API)
+* worker (BullMQ)
+* vLLM server OR ollama (GPU-enabled)
+
+Ensure:
+
+* NVIDIA Container Toolkit installed
+* GPU accessible inside containers
+
+---
+
+# 🧠 VECTOR MEMORY (pgvector)
+
+Enable pgvector extension in Postgres.
+
+Store:
+
+* email embeddings
+* sender embeddings
+* user behavior embeddings
+
+Use for:
+
+* semantic search
+* clustering similar emails
+* predicting importance
+* context-aware reasoning
+
+---
+
+# ⚡ AI PIPELINE (MULTI-STAGE)
+
+1. Email arrives (queue)
+2. Local GPU model:
+   → classification
+   → priority scoring
+   → embedding generation
+3. Store embeddings in pgvector
+4. If priority > threshold:
+   → send to cloud LLM
+   → deep reasoning / reply generation
+5. Store final decision
+
+---
+
+# 🧠 MODEL ROUTER (CRITICAL)
+
+Implement:
+
+selectModel(task, priority, gpuLoad)
+
+Rules:
+
+* classification → local GPU
+* embeddings → local GPU
+* summary → local (unless complex)
+* reasoning → cloud if priority high
+* reply → cloud if critical
+
+Fallback:
+
+* If GPU overloaded → cloud
+* If cloud fails → local
+
+---
+
+# ⚡ GPU OPTIMIZATION
+
+* Batch multiple email inferences
+* Use async workers
+* Avoid blocking API
+* Monitor GPU usage
+* Scale across multiple GPUs if available
+
+---
+
+# 🧠 DECISION ENGINE
+
+Output for each email:
+
+{
+category,
+priority_score,
+urgency,
+recommended_action,
+confidence,
+reason,
+model_used: "local | cloud"
+}
+
+---
+
+# ⚡ ML-STYLE PRIORITY MODEL
+
+Use weighted scoring:
+
+priority =
+sender_score * 0.25 +
+reply_rate * 0.2 +
+open_rate * 0.15 +
+urgency_score * 0.2 +
+recency_score * 0.1 -
+ignore_rate * 0.1
+
+---
+
+# 🧠 USER MEMORY GRAPH
+
+Maintain:
+
+User ↔ Sender ↔ Interaction ↔ Intent
+
+Update on:
+
+* open
+* reply
+* ignore
+* archive
+
+Use this to influence scoring + predictions
+
+---
+
+# ⚡ STREAMING + REAL-TIME UX
+
+* Stream responses from LLM
+* Update UI progressively
+* Do not block UI for full inference
+* Show partial results instantly
+
+---
+
+# ⚡ QUEUE DESIGN (BullMQ)
+
+Queues:
+
+* email-sync
+* process-email
+* local-ai
+* cloud-ai
+* embedding-jobs
+
+Workers:
+
+* local GPU worker
+* cloud worker
+* sync worker
+
+---
+
+# 🧠 CACHE + RATE LIMIT
+
+* Cache AI outputs in Redis
+* Deduplicate jobs
+* Use exponential backoff for Gmail API
+* Adaptive sync frequency
+
+---
+
+# 🎨 FRONTEND (NEXT.JS)
+
+Build a decision-first UI:
+
+* Priority
+* Needs Action
+* Updates
+* Low Priority
+
+Each email shows:
+
+* priority score
+* reason
+* model used (local/cloud)
+* action
+
+---
+
+# ⚡ SMART FEATURES
+
+* Auto-bundle emails
+* Predict next important email
+* Semantic clustering using embeddings
+* Highlight urgent content
+* AI-generated summaries
+
+---
+
+# 🚫 CONSTRAINTS
+
+* NEVER run all tasks on cloud
+* ALWAYS prioritize GPU usage
+* NEVER block API
+* NEVER over-fetch Gmail
+* ALWAYS use queue-based processing
+
+---
+
+# 🎯 OUTPUT REQUIREMENTS
+
+Generate:
+
+1. Docker setup (GPU + vLLM + Redis + Postgres)
+2. Backend (Node.js + BullMQ)
+3. GPU worker (local inference)
+4. Cloud fallback system
+5. Vector DB integration (pgvector)
+6. Model router
+7. Decision engine code
+8. Streaming support
+9. Frontend components
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a system that:
+
+* Uses GPU like a high-performance AI engine
+* Minimizes cost with local-first inference
+* Scales to SaaS-level workloads
+* Learns continuously from users
+* Feels faster and smarter than Gmail
+
+This should feel like:
+
+→ Cursor AI + Perplexity + Superhuman + Gmail combined
+
+You are building the most advanced AI-powered email system ever created.

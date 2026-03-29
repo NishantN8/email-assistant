@@ -1,0 +1,52 @@
+# Node
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/.nuxt
+
+# Dev artifacts
+.env
+*.local
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test & coverage
+coverage
+**/*.test.ts
+**/*.spec.ts
+**/__tests__
+
+# Docker artifacts themselves
+docker-compose.override.yml
+.docker
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never bake into images)
+.env.local
+.env.production
+*.pem
+*.key
+*.cert
+
+# Replit-specific
+.replit
+replit.nix
+.local/
+.cache/

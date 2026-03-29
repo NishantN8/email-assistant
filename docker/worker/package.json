@@ -1,0 +1,11 @@
+{
+  "name": "@workspace/bullmq-worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.0.0",
+    "openai": "^4.0.0"
+  }
+}
