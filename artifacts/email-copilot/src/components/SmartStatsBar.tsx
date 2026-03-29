@@ -33,9 +33,10 @@ interface StatCardProps {
   suffix?: string;
   accent?: "blue" | "orange" | "green" | "purple";
   onClick?: () => void;
+  active?: boolean;
 }
 
-function StatCard({ icon, label, value, suffix = "", accent = "blue", onClick }: StatCardProps) {
+function StatCard({ icon, label, value, suffix = "", accent = "blue", onClick, active }: StatCardProps) {
   const animated = useCountUp(value);
   const colors = {
     blue: "text-blue-400 bg-blue-400/8 border-blue-400/15 group-hover:border-blue-400/30",
@@ -53,6 +54,7 @@ function StatCard({ icon, label, value, suffix = "", accent = "blue", onClick }:
       className={cn(
         "group flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all duration-200",
         colors[accent],
+        active && "ring-2 ring-offset-1 ring-offset-background ring-current scale-[1.03]",
         onClick && "cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
         !onClick && "cursor-default"
       )}
@@ -73,7 +75,7 @@ function StatCard({ icon, label, value, suffix = "", accent = "blue", onClick }:
   );
 }
 
-export function SmartStatsBar({ onFilterAction }: { onFilterAction?: (filter: string) => void }) {
+export function SmartStatsBar({ onFilterAction, activeFilter }: { onFilterAction?: (filter: string) => void; activeFilter?: string | null }) {
   const { data: stats } = useInboxStats();
 
   if (!stats) {
@@ -100,6 +102,7 @@ export function SmartStatsBar({ onFilterAction }: { onFilterAction?: (filter: st
         value={stats.highPriorityCount + stats.criticalCount}
         accent="orange"
         onClick={onFilterAction ? () => onFilterAction("priority") : undefined}
+        active={activeFilter === "priority"}
       />
       <StatCard
         icon={<Sparkles className="w-3.5 h-3.5 text-green-400" />}
