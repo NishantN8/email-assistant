@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
     },
   },
 });
@@ -20,6 +20,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Inbox} />
       <Route path="/email/:id" component={EmailDetail} />
+      <Route path="/sent"><Redirect to="/" /></Route>
+      <Route path="/archive"><Redirect to="/" /></Route>
+      <Route path="/trash"><Redirect to="/" /></Route>
       <Route component={NotFound} />
     </Switch>
   );
