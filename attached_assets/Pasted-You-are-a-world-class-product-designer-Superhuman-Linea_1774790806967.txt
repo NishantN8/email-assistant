@@ -1,0 +1,240 @@
+You are a world-class product designer (Superhuman, Linear, Notion AI level) and senior frontend engineer.
+
+Your task is to redesign my AI email copilot UI from a traditional email client into a true AI-first decision system.
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Transform the product from:
+
+→ Email reader with AI panel
+
+Into:
+
+→ AI decision engine where email is just context
+
+The UI must:
+
+* Reduce cognitive load
+* Surface decisions instantly
+* Feel fast, intelligent, and minimal
+* Be clearly superior to Gmail
+
+---
+
+# 🧠 CURRENT PROBLEMS TO FIX
+
+1. Email content is dominating UI (wrong priority)
+2. Reply experience is basic (not intelligent)
+3. Right panel is overloaded (too much text)
+4. No behavioral intelligence shown
+5. No model transparency (local vs cloud)
+6. Sidebar is inefficient and repetitive
+7. Email list lacks decision signals
+8. No flow-state UX (keyboard, quick actions)
+
+---
+
+# 🔥 REQUIRED TRANSFORMATIONS
+
+---
+
+## 🔥 1. AI-FIRST CENTER PANEL (CRITICAL)
+
+Redesign center panel to show:
+
+1. AI Summary (top, bold)
+2. Key Insights (bullets)
+3. Recommended Action (clear CTA)
+4. Reply Box (if applicable)
+5. Full email content (collapsed / secondary)
+
+---
+
+## 🔥 2. ELITE REPLY SYSTEM
+
+Upgrade ReplyBox to:
+
+* Multi-reply options:
+
+  * Short
+  * Professional
+  * Friendly
+
+* Tone switcher:
+
+  * Casual / Formal / Assertive
+
+* Actions:
+
+  * Send
+  * Regenerate
+  * Improve
+
+* Streaming typing effect
+
+* Show model used (local/cloud)
+
+---
+
+## 🔥 3. DECISION CARD (RIGHT PANEL REDESIGN)
+
+Replace cluttered panel with:
+
+Clean decision card:
+
+* ACTION (primary)
+* CONFIDENCE
+* WHY (1–2 lines only)
+
+Example:
+
+ACTION: Archive
+WHY: Promotional + low engagement
+CONFIDENCE: 75%
+
+---
+
+## 🔥 4. SENDER INTELLIGENCE PANEL
+
+Add:
+
+* Trust score (0–100)
+* Reply rate
+* Open rate
+* Ignore rate
+
+AI insights:
+
+* “You usually ignore this sender”
+* “You engage with similar emails”
+
+Use visual bars and color coding
+
+---
+
+## 🔥 5. SMART EMAIL LIST (LEFT PANEL)
+
+Upgrade EmailCard:
+
+Show:
+
+* Priority score (color-coded)
+* AI reason tag
+* Action hint (Reply / Ignore / Track)
+
+Behavior:
+
+* High priority → highlighted
+* Low priority → collapsed
+* Repeated emails → bundled
+
+---
+
+## 🔥 6. MODEL VISIBILITY (CRITICAL)
+
+Display:
+
+* 🧠 Local AI (Llama / Mistral)
+* ☁️ Cloud AI (GPT / Gemini)
+
+Show per decision and reply
+
+---
+
+## 🔥 7. SMART STATS BAR (TOP)
+
+Add dashboard:
+
+* Emails processed
+* Action needed
+* AI accuracy
+* Time saved
+
+Clickable → filters inbox
+
+---
+
+## 🔥 8. FLOW-STATE UX (SUPERHUMAN STYLE)
+
+Add:
+
+* Keyboard shortcuts:
+
+  * j/k → navigate
+  * r → reply
+  * e → archive
+
+* Hover actions on emails
+
+* Instant transitions
+
+* Zero-lag feel
+
+---
+
+## 🔥 9. EXPLAINABILITY LAYER
+
+Add “Why this email?”
+
+Show:
+
+* Reason
+* Behavior influence
+* Similar past emails
+
+---
+
+# ⚡ DESIGN PRINCIPLES
+
+* Minimal but powerful
+* Decision > content
+* Visual hierarchy must guide action
+* No clutter
+* No Gmail-style tabs
+
+---
+
+# 🚫 AVOID
+
+* Email-first layout
+* Static UI
+* Equal importance for all emails
+* Overloaded panels
+
+---
+
+# 🎯 OUTPUT
+
+Generate:
+
+1. New layout structure (3-column redesign)
+2. Updated components:
+
+   * EmailCard
+   * ReplyBox
+   * DecisionCard
+   * SenderPanel
+   * StatsBar
+3. Tailwind/React code (pixel-perfect)
+4. Interaction behaviors
+5. State management logic
+6. Animation suggestions
+
+---
+
+# 🎯 FINAL GOAL
+
+Design a system that:
+
+* Thinks like an assistant
+* Acts before user thinks
+* Reduces effort drastically
+* Feels intelligent and fast
+
+This should feel like:
+
+→ Superhuman + Linear + Notion AI combined
+
+You are designing the future of email.

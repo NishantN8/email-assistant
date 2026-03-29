@@ -216,97 +216,74 @@ export function AiDecisionCard({
     logAction.mutate({ data: { emailId, action: "override_decision", decisionOverride: override } });
   };
 
-  // ── Compact right-panel version ──
+  // ── Compact right-panel: ACTION / WHY / CONFIDENCE ──
   if (compact) {
+    const action = ACTION_LABELS[decision.recommendedAction] || decision.recommendedAction;
+    const scoreColor =
+      decision.priorityScore >= 80 ? { text: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/20", bar: "bg-red-400" } :
+      decision.priorityScore >= 60 ? { text: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20", bar: "bg-orange-400" } :
+      decision.priorityScore >= 40 ? { text: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20", bar: "bg-yellow-400" } :
+      { text: "text-green-400", bg: "bg-green-400/10", border: "border-green-400/20", bar: "bg-green-400" };
+
     return (
-      <div className="space-y-4 p-4">
-        {/* Score + urgency */}
-        <div className="flex items-center gap-3">
-          <ScoreRing score={decision.priorityScore} />
-          <div className="flex-1 min-w-0 space-y-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-                getScoreColor(decision.priorityScore)
-              )}>
-                {decision.urgency}
-              </span>
-              <ModelBadge source={decision.modelSource} />
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Confidence</span>
-              <span className="text-[10px] font-bold">{Math.round(decision.confidence * 100)}%</span>
-            </div>
-            <div className="h-1 bg-secondary rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${decision.confidence * 100}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="h-full bg-primary rounded-full"
-              />
-            </div>
+      <div className="flex flex-col h-full overflow-y-auto">
+        {/* ── 1. ACTION (primary) ── */}
+        <div className={cn("p-4 border-b border-border/40", scoreColor.bg)}>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Action</p>
+          <div className="flex items-center justify-between">
+            <span className={cn("text-xl font-black uppercase tracking-tight", scoreColor.text)}>
+              {action}
+            </span>
+            <ModelBadge source={decision.modelSource} />
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border", scoreColor.text, scoreColor.border, scoreColor.bg)}>
+              {decision.urgency}
+            </span>
+            <span className="text-[9px] text-muted-foreground">· score {decision.priorityScore}</span>
           </div>
         </div>
 
-        {/* Recommended action */}
-        <div>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
-            AI Recommendation
-          </span>
-          <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold text-xs uppercase tracking-wide">
-            <Sparkles className="w-3 h-3 mr-1.5" />
-            {ACTION_LABELS[decision.recommendedAction] || decision.recommendedAction}
-          </span>
+        {/* ── 2. WHY (1-2 lines max) ── */}
+        <div className="p-4 border-b border-border/40">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Why</p>
+          <p className="text-xs text-foreground leading-relaxed line-clamp-3">{decision.reason}</p>
         </div>
 
-        {/* Why this email */}
-        <div>
-          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-            Why this email?
-          </span>
-          <p className="text-xs text-foreground leading-relaxed">{decision.reason}</p>
+        {/* ── 3. CONFIDENCE ── */}
+        <div className="p-4 border-b border-border/40">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Confidence</p>
+            <span className="text-[13px] font-bold tabular-nums text-foreground">{Math.round(decision.confidence * 100)}%</span>
+          </div>
+          <div className="h-2 bg-secondary rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${decision.confidence * 100}%` }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className={cn("h-full rounded-full", scoreColor.bar)}
+            />
+          </div>
         </div>
 
-        {/* Summary */}
-        {decision.summary && (
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Summary</span>
-            <p className="text-xs text-muted-foreground leading-relaxed">{decision.summary}</p>
-          </div>
-        )}
+        {/* ── 4. SENDER INTELLIGENCE ── */}
+        <div className="flex-1 p-4">
+          <SenderTrustPanel emailId={emailId} />
+        </div>
 
-        {/* Key points */}
-        {decision.keyPoints && decision.keyPoints.length > 0 && (
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">Key Points</span>
-            <ul className="space-y-1.5">
-              {decision.keyPoints.map((point, i) => (
-                <li key={i} className="flex items-start gap-1.5 text-xs text-foreground">
-                  <CheckCircle2 className="w-3 h-3 text-primary mt-0.5 shrink-0" />
-                  <span className="leading-relaxed">{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Sender Trust */}
-        <SenderTrustPanel emailId={emailId} />
-
-        {/* Override actions */}
-        <div className="border-t border-border/50 pt-3 space-y-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground block">Override AI</span>
+        {/* ── 5. OVERRIDE (minimal) ── */}
+        <div className="p-4 border-t border-border/40 flex gap-2">
           <button
             onClick={() => handleOverride("reply")}
-            className="w-full px-3 py-1.5 rounded-lg bg-secondary hover:bg-foreground hover:text-background text-foreground font-medium text-xs transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 py-1.5 rounded-lg bg-secondary hover:bg-foreground hover:text-background text-muted-foreground hover:text-background text-[10px] font-bold uppercase tracking-wide transition-colors"
           >
-            <ThumbsUp className="w-3 h-3" /> Force Reply
+            ↩ Reply
           </button>
           <button
             onClick={() => handleOverride("archive")}
-            className="w-full px-3 py-1.5 rounded-lg bg-secondary hover:bg-red-500/20 hover:text-red-400 text-foreground font-medium text-xs transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 py-1.5 rounded-lg bg-secondary hover:bg-red-500/20 hover:text-red-400 text-muted-foreground text-[10px] font-bold uppercase tracking-wide transition-colors"
           >
-            <XCircle className="w-3 h-3" /> Force Archive
+            ▾ Archive
           </button>
         </div>
       </div>
