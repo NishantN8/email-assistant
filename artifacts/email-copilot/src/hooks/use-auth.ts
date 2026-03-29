@@ -78,7 +78,10 @@ export function useAuth() {
         return;
       }
       try {
-        const res = await fetch(`${BASE}/api/auth/me`, { credentials: "include" });
+        const res = await fetch(`${BASE}/api/auth/me`, {
+          credentials: "include",
+          cache: "no-store",
+        });
         if (res.ok) {
           const json: MeResponse = await res.json();
           if (json.user) {

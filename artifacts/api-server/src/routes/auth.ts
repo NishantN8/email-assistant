@@ -115,6 +115,7 @@ router.get("/auth/google/callback", async (req, res) => {
 
 // ── GET /api/auth/me ──────────────────────────────
 router.get("/auth/me", async (req, res) => {
+  res.set("Cache-Control", "no-store");
   const userId = (req as any).session?.userId;
 
   if (!userId) {
