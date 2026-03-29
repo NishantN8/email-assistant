@@ -3,6 +3,7 @@ import { Brain, Zap, Sparkles, Clock, ChevronRight } from "lucide-react";
 import { useInboxStats } from "@/hooks/use-sender-stats";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { GpuWidget } from "@/components/GpuWidget";
 
 function useCountUp(target: number, duration = 800) {
   const [value, setValue] = useState(0);
@@ -117,6 +118,7 @@ export function SmartStatsBar({ onFilterAction, activeFilter }: { onFilterAction
         value={stats.estimatedMinutesSaved}
         accent="purple"
       />
+      <GpuWidget />
     </div>
   );
 }

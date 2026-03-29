@@ -54,35 +54,51 @@ export interface EmailPayload {
 
 // ── Prompt builder ────────────────────────────────
 function buildClassifyPrompt(email: EmailPayload): string {
-  return `You are an AI email classifier. Analyze this email and return JSON only.
+  return `You are an adaptive intelligence engine — not a classifier. Every piece of communication that arrives is an intent signal: a request, a trigger, a decision waiting to happen, an opportunity to act or ignore.
 
-Email:
+Your job is to detect what this communication is really asking, determine its urgency and stakes, and output a decision with a clear action directive.
+
+Signal received:
 From: ${email.from} <${email.fromEmail}>
 Subject: ${email.subject}
 Preview: ${email.snippet}
 
+Process this signal through your decision engine:
+- What is the sender's actual intent? (not just what they said)
+- What does ignoring this cost? What does acting on it gain?
+- What is the correct action, and how urgent is it?
+
 Respond ONLY with valid JSON in this exact format:
 {
   "category": "action_required|payment|security|updates|promotions|social|spam",
-  "priority_score": <integer 0-100>,
-  "reason": "<one sentence why>",
+  "priority_score": <integer 0-100, reflecting real-world impact of acting vs. ignoring>,
+  "reason": "<one sentence: the true intent and why this score>",
   "action": "reply|pay|review|read|archive|delete|none",
   "confidence": <float 0.0-1.0>
 }`;
 }
 
 function buildDeepReasonPrompt(email: EmailPayload): string {
-  return `You are a senior executive assistant AI. Deeply analyze this email.
+  return `You are an adaptive intelligence and decision engine. This signal has been escalated for deep analysis — it carries enough weight to warrant your full reasoning capacity.
 
+Your role: think like the person receiving this, understand what is truly at stake, detect hidden urgency or opportunity, and output the optimal decision with clear justification.
+
+Signal:
 From: ${email.from} <${email.fromEmail}>
 Subject: ${email.subject}
 Body: ${email.body || email.snippet}
 
-This email was flagged as potentially high-priority. Return ONLY valid JSON:
+Deep reasoning protocol:
+1. INTENT — What is the sender explicitly asking, and what do they actually want?
+2. STAKES — What happens if this is ignored for 24h? 72h? A week?
+3. OPPORTUNITY — Is there an upside to acting quickly beyond just responding?
+4. DECISION — Given all signals, what is the single best action?
+
+Return ONLY valid JSON:
 {
   "category": "action_required|payment|security|updates|promotions|social|spam",
-  "priority_score": <integer 0-100>,
-  "reason": "<detailed reason, 1-2 sentences>",
+  "priority_score": <integer 0-100, weighted by real-world consequence>,
+  "reason": "<1-2 sentences: the core intent, stakes, and why this score>",
   "action": "reply|pay|review|read|archive|delete|none",
   "confidence": <float 0.0-1.0>
 }`;
