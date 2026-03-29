@@ -18,7 +18,8 @@ router.get("/emails/summary", async (req, res) => {
         isRead: emailsTable.isRead,
         priorityScore: emailsTable.priorityScore,
       })
-      .from(emailsTable);
+      .from(emailsTable)
+      .where(sql`NOT (${emailsTable.labels} @> '["ARCHIVE"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb)`);
 
     const needsActionCount = emails.filter(
       (e) =>
@@ -65,9 +66,12 @@ router.get("/emails", async (req, res) => {
     const limit = params.success ? (params.data.limit ?? 50) : 50;
     const offset = params.success ? (params.data.offset ?? 0) : 0;
 
+    // Exclude archived and trashed emails from inbox
+    const inboxFilter = sql`NOT (${emailsTable.labels} @> '["ARCHIVE"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb)`;
+
     const whereClause = category
-      ? eq(emailsTable.category, category)
-      : undefined;
+      ? sql`${emailsTable.category} = ${category} AND NOT (${emailsTable.labels} @> '["ARCHIVE"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb)`
+      : inboxFilter;
 
     const emailRows = await db
       .select()

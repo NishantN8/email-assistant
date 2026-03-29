@@ -237,6 +237,7 @@ function EmailDetailPanel({
   const { data, isLoading } = useGetEmail(emailId, { query: { enabled: !!emailId } });
   const { logAction } = useEmailActions();
   const markedRead = useRef(false);
+  const replyBoxRef = useRef<HTMLDivElement>(null);
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyMode, setReplyMode] = useState<"picker" | "plain" | "ai">("picker");
@@ -249,6 +250,14 @@ function EmailDetailPanel({
     setReplyOpen(false);
     setReplyMode("picker");
   }, [emailId]);
+
+  useEffect(() => {
+    if (replyOpen && replyBoxRef.current) {
+      setTimeout(() => {
+        replyBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 250);
+    }
+  }, [replyOpen]);
 
   useEffect(() => {
     if (data?.email && !data.email.isRead && !markedRead.current) {
@@ -520,6 +529,7 @@ function EmailDetailPanel({
         <AnimatePresence>
           {replyOpen && (
             <motion.div
+              ref={replyBoxRef}
               key="reply-box"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
