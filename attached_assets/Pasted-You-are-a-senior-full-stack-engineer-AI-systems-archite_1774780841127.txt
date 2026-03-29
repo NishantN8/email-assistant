@@ -1,0 +1,242 @@
+You are a senior full-stack engineer, AI systems architect, and product designer.
+
+Your task is to build a production-grade AI email copilot system using Node.js, Next.js, BullMQ, Redis, Postgres, and Gmail API.
+
+This system must function as an intelligent decision engine, not a traditional email client.
+
+---
+
+# 🎯 CORE REQUIREMENTS
+
+Build a full-stack system with:
+
+1. Gmail integration (OAuth + incremental sync via History API)
+2. Queue-driven backend (BullMQ + Redis)
+3. Cache-first architecture (Redis + Postgres)
+4. AI decision engine (classification + ML-style scoring + LLM reasoning)
+5. Decision-first UI (Next.js + Tailwind, Superhuman-style)
+
+---
+
+# 🧠 BACKEND IMPLEMENTATION
+
+## Gmail Integration
+
+* Implement OAuth2 login flow
+* Store user tokens securely
+* Use Gmail History API for incremental sync
+* NEVER fetch full mailbox repeatedly
+
+## Queue System (BullMQ)
+
+* Create queue: "email-queue"
+
+* Jobs:
+
+  * sync-emails
+  * process-email
+
+* sync-emails:
+  → fetch history
+  → enqueue new messages
+
+* process-email:
+  → fetch full message
+  → parse email
+  → store in Postgres
+  → run decision engine
+  → store decision
+
+## Database (Postgres)
+
+Create tables:
+
+* users
+* emails
+* decisions
+* interactions
+* sender_memory
+
+Update sender_memory on every interaction:
+
+* open
+* reply
+* ignore
+* archive
+
+---
+
+# 🧠 AI DECISION ENGINE
+
+For every email, output:
+
+{
+category,
+priority_score,
+urgency,
+recommended_action,
+confidence,
+reason
+}
+
+---
+
+## Multi-stage pipeline
+
+1. Fast classifier (rules or lightweight model)
+2. Priority scoring (ML-style weighted scoring)
+3. Deep reasoning (LLM only for high-priority emails)
+
+---
+
+## Priority Scoring Model
+
+Use features:
+
+* sender_score (based on memory)
+* reply_rate
+* open_rate
+* ignore_rate
+* urgency_score
+* recency_score
+
+Weighted formula:
+
+priority =
+sender_score * 0.25 +
+reply_rate * 0.2 +
+open_rate * 0.15 +
+urgency_score * 0.2 +
+recency_score * 0.1 -
+ignore_rate * 0.1
+
+Clamp between 0–100
+
+---
+
+## Decision Logic
+
+* High score → reply / highlight
+* Medium → read_later / track
+* Low → archive / bundle
+
+---
+
+# ⚡ CACHE + RATE LIMIT STRATEGY
+
+* NEVER call Gmail from frontend
+* ALWAYS serve from cache (Redis/Postgres)
+* Use BullMQ for all external API calls
+* Implement exponential backoff on quota errors
+* Store cooldown state in Redis
+
+---
+
+# 🎨 FRONTEND (Next.js 14)
+
+Use App Router + TailwindCSS
+
+## Layout
+
+3-column layout:
+
+* Left: PriorityList, NeedsActionList
+* Center: EmailView
+* Right: DecisionCard
+
+---
+
+## Components
+
+### EmailCard
+
+Show:
+
+* sender
+* subject
+* priority_score (color-coded)
+* reason
+
+---
+
+### ActionStrip
+
+Display:
+
+* “X emails need action”
+* “Y payments detected”
+
+---
+
+### DecisionCard
+
+Show:
+
+* recommended_action
+* reason
+* confidence
+
+Buttons:
+
+* Apply
+* Override
+
+---
+
+## UX Rules
+
+* Decision-first UI (not Gmail clone)
+* High priority emails visually highlighted
+* Low priority collapsed or bundled
+* Keyboard shortcuts:
+
+  * j/k navigation
+  * r = reply
+  * e = archive
+
+---
+
+# 🧠 SMART FEATURES
+
+* Auto-bundle repeated emails
+* Predict user interest from behavior
+* Update sender memory dynamically
+* Highlight “emails that matter now”
+
+---
+
+# 🚫 CONSTRAINTS
+
+* Do NOT over-fetch Gmail API
+* Do NOT block UI waiting for AI
+* Do NOT run expensive models for all emails
+* Do NOT expose Gmail API to frontend
+
+---
+
+# 🎯 OUTPUT
+
+Generate:
+
+1. Backend structure (Express + BullMQ + Gmail API)
+2. Database schema (Postgres SQL)
+3. AI decision engine code
+4. Queue workers
+5. Frontend components (Next.js + Tailwind)
+6. End-to-end flow (sync → process → decision → UI)
+
+Code must be modular, production-ready, and scalable.
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a system that:
+
+* Thinks like a human assistant
+* Prioritizes emails automatically
+* Minimizes API usage
+* Scales to thousands of users
+* Feels faster and smarter than Gmail
+
+Act like you are building the future of email.
