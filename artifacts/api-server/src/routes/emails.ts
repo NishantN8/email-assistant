@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql } from "drizzle-orm";
-import { db, emailsTable, aiDecisionsTable } from "@workspace/db";
+import { eq, desc, sql } from "drizzle-orm";
+import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace/db";
 import {
   GetEmailsQueryParams,
   GetEmailResponse,
@@ -130,6 +130,33 @@ router.get("/emails", async (req, res) => {
   }
 });
 
+// ── GET /api/emails/inbox-stats ───────────────
+router.get("/emails/inbox-stats", async (req, res) => {
+  try {
+    const [totalResult, scoredResult, criticalResult, highResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(emailsTable),
+      db.select({ count: sql<number>`count(*)` }).from(aiDecisionsTable),
+      db.select({ count: sql<number>`count(*)` }).from(emailsTable).where(eq(emailsTable.urgency, "critical")),
+      db.select({ count: sql<number>`count(*)` }).from(emailsTable).where(eq(emailsTable.urgency, "high")),
+    ]);
+
+    const total = Number(totalResult[0]?.count ?? 0);
+    const scored = Number(scoredResult[0]?.count ?? 0);
+
+    res.json({
+      totalEmails: total,
+      aiScored: scored,
+      criticalCount: Number(criticalResult[0]?.count ?? 0),
+      highPriorityCount: Number(highResult[0]?.count ?? 0),
+      coveragePercent: total > 0 ? Math.round((scored / total) * 100) : 0,
+      estimatedMinutesSaved: Math.round(scored * 0.5),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get inbox stats");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 router.get("/emails/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -175,6 +202,72 @@ router.get("/emails/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to get email");
     res.status(500).json({ error: "internal_error", message: "Failed to get email" });
+  }
+});
+
+// ── GET /api/emails/:id/sender ────────────────
+// Returns sender memory stats for the email's from-address
+router.get("/emails/:id/sender", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const emailRows = await db
+      .select({ fromEmail: emailsTable.fromEmail, from: emailsTable.from })
+      .from(emailsTable)
+      .where(eq(emailsTable.id, id))
+      .limit(1);
+
+    if (emailRows.length === 0) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+
+    const { fromEmail, from: displayName } = emailRows[0];
+
+    const memRows = await db
+      .select()
+      .from(senderMemoryTable)
+      .where(eq(senderMemoryTable.fromEmail, fromEmail))
+      .limit(1);
+
+    if (memRows.length === 0) {
+      res.json({
+        fromEmail,
+        displayName,
+        totalEmails: 0,
+        openCount: 0,
+        replyCount: 0,
+        ignoreCount: 0,
+        archiveCount: 0,
+        importanceScore: 0.5,
+        lastInteractionAt: null,
+        openRate: 0,
+        replyRate: 0,
+        ignoreRate: 0,
+      });
+      return;
+    }
+
+    const m = memRows[0];
+    const total = m.totalEmails || 1;
+
+    res.json({
+      fromEmail: m.fromEmail,
+      displayName: m.displayName,
+      totalEmails: m.totalEmails,
+      openCount: m.openCount,
+      replyCount: m.replyCount,
+      ignoreCount: m.ignoreCount,
+      archiveCount: m.archiveCount,
+      importanceScore: m.importanceScore,
+      lastInteractionAt: m.lastInteractionAt?.toISOString() ?? null,
+      openRate: m.openCount / total,
+      replyRate: m.replyCount / total,
+      ignoreRate: m.ignoreCount / total,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get sender stats");
+    res.status(500).json({ error: "internal_error" });
   }
 });
 

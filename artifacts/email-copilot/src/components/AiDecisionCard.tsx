@@ -1,7 +1,8 @@
 import { type AiDecision } from "@workspace/api-client-react";
-import { Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2, Cpu, Cloud } from "lucide-react";
+import { Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2, Cpu, Cloud, User, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { cn, getScoreColor } from "@/lib/utils";
 import { useEmailActions } from "@/hooks/use-emails";
+import { useSenderStats } from "@/hooks/use-sender-stats";
 import { motion } from "framer-motion";
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -21,7 +22,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 function ModelBadge({ source }: { source?: string }) {
   if (!source) return null;
-  const isCloud = source === "cloud";
+  const isCloud = source.startsWith("cloud") || source === "cloud";
   return (
     <span
       className={cn(
@@ -35,6 +36,67 @@ function ModelBadge({ source }: { source?: string }) {
       {isCloud ? <Cloud className="w-2.5 h-2.5" /> : <Cpu className="w-2.5 h-2.5" />}
       {isCloud ? "Cloud AI" : "Local AI"}
     </span>
+  );
+}
+
+function TrustBar({ score }: { score: number }) {
+  const pct = Math.round(score * 100);
+  const color =
+    pct >= 70 ? "bg-green-500" : pct >= 40 ? "bg-yellow-500" : "bg-red-400";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className={cn("h-full rounded-full", color)}
+        />
+      </div>
+      <span className="text-[10px] font-bold tabular-nums text-muted-foreground w-7 text-right">{pct}%</span>
+    </div>
+  );
+}
+
+function RateDot({ rate, label }: { rate: number; label: string }) {
+  const pct = Math.round(rate * 100);
+  const Icon = pct >= 50 ? TrendingUp : pct >= 20 ? Minus : TrendingDown;
+  const color = pct >= 50 ? "text-green-400" : pct >= 20 ? "text-yellow-400" : "text-red-400";
+  return (
+    <div className="flex items-center gap-1">
+      <Icon className={cn("w-2.5 h-2.5", color)} />
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className={cn("text-[10px] font-bold", color)}>{pct}%</span>
+    </div>
+  );
+}
+
+function SenderTrustPanel({ emailId }: { emailId: string }) {
+  const { data: sender, isLoading } = useSenderStats(emailId);
+
+  if (isLoading || !sender) return null;
+
+  return (
+    <div className="border-t border-border/40 pt-3 space-y-2.5">
+      <div className="flex items-center gap-1.5">
+        <User className="w-3 h-3 text-muted-foreground" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Sender Trust</span>
+      </div>
+
+      <TrustBar score={sender.importanceScore} />
+
+      <div className="space-y-1">
+        <RateDot rate={sender.openRate} label="open rate" />
+        <RateDot rate={sender.replyRate} label="reply rate" />
+        <RateDot rate={sender.ignoreRate} label="ignore rate" />
+      </div>
+
+      {sender.totalEmails > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          {sender.totalEmails} email{sender.totalEmails !== 1 ? "s" : ""} from this sender tracked
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -111,7 +173,7 @@ export function AiDecisionCard({
 
         {/* Reason */}
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Reason</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Why this email?</span>
           <p className="text-xs text-foreground leading-relaxed">{decision.reason}</p>
         </div>
 
@@ -137,6 +199,9 @@ export function AiDecisionCard({
             </ul>
           </div>
         )}
+
+        {/* Sender trust — live from memory graph */}
+        <SenderTrustPanel emailId={emailId} />
 
         <div className="border-t border-border/50 pt-3 space-y-1.5">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">Override AI</span>
@@ -223,6 +288,12 @@ export function AiDecisionCard({
                   className="h-full bg-primary"
                 />
               </div>
+            </div>
+
+            {/* Sender trust inline */}
+            <div>
+              <div className="text-sm font-medium text-muted-foreground mb-2">Sender Trust</div>
+              <SenderTrustPanel emailId={emailId} />
             </div>
 
             <div>

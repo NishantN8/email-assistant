@@ -2,9 +2,10 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useGetEmails, useGetEmail } from "@workspace/api-client-react";
 import { type EmailWithDecision } from "@workspace/api-client-react";
 import { ActionStrip } from "@/components/ActionStrip";
-import { EmailCard } from "@/components/EmailCard";
 import { Sidebar } from "@/components/Sidebar";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
+import { ReplyBox } from "@/components/ReplyBox";
+import { SmartStatsBar } from "@/components/SmartStatsBar";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useKeyboardNav } from "@/hooks/use-keyboard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -151,26 +152,15 @@ function EmailDetailPanel({
           )}
         </div>
 
-        {/* Quick reply */}
-        <div className="rounded-xl border border-border bg-card p-4 mt-4">
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">ME</div>
-            <div className="flex-1">
-              <textarea
-                className="w-full bg-transparent border-0 focus:ring-0 resize-none text-sm text-foreground placeholder:text-muted-foreground p-0 min-h-[52px]"
-                placeholder="Write a quick reply…"
-              />
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={onReply}
-                  className="px-4 py-1.5 bg-primary text-primary-foreground font-semibold rounded-lg text-sm hover:bg-primary/90 transition-colors"
-                >
-                  Send Reply
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* AI Reply Box */}
+        <ReplyBox
+          emailId={email.id}
+          emailFrom={email.fromEmail}
+          emailSubject={email.subject}
+          threadId={email.threadId}
+          defaultTone="professional"
+          onSent={() => onReply()}
+        />
       </div>
     </div>
   );
@@ -355,6 +345,7 @@ export default function Inbox() {
         </div>
 
         <ActionStrip compact />
+        <SmartStatsBar />
 
         {/* Email sections */}
         <div className="flex-1 overflow-y-auto">
