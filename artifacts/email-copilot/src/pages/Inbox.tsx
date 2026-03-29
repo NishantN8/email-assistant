@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useGetEmails, useGetEmail } from "@workspace/api-client-react";
 import { type EmailWithDecision } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ActionStrip } from "@/components/ActionStrip";
 import { Sidebar } from "@/components/Sidebar";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
 import { ReplyBox, ReplyModeOptions } from "@/components/ReplyBox";
@@ -789,6 +788,7 @@ export default function Inbox() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Feature 1: collapsed sections (Low Priority collapsed by default)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(["low"]));
   // Feature 2: active filter from SmartStatsBar
@@ -925,7 +925,26 @@ export default function Inbox() {
   // Feature 2: filter sections based on active filter
   const sections = useMemo(() => {
     if (!activeFilter) return allSections;
-    if (activeFilter === "priority") return allSections.filter((s) => s.id === "priority" || s.id === "action");
+    if (activeFilter === "priority") {
+      return allSections
+        .map((s) => ({
+          ...s,
+          items: s.items.filter(
+            (e) => e.decision?.recommendedAction === "reply" || e.email.priorityScore >= 70
+          ),
+        }))
+        .filter((s) => s.items.length > 0);
+    }
+    if (activeFilter === "critical") {
+      return allSections
+        .map((s) => ({ ...s, items: s.items.filter((e) => e.email.priorityScore >= 80) }))
+        .filter((s) => s.items.length > 0);
+    }
+    if (activeFilter === "payments") {
+      return allSections
+        .map((s) => ({ ...s, items: s.items.filter((e) => e.email.category === "TRANSACTIONS") }))
+        .filter((s) => s.items.length > 0);
+    }
     return allSections;
   }, [allSections, activeFilter]);
 
@@ -955,12 +974,16 @@ export default function Inbox() {
   return (
     <div className="min-h-screen bg-background flex overflow-hidden">
       {/* ── Column 1: Sidebar nav ── */}
-      <Sidebar />
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+      />
 
       {/* ── Column 2: Email list ── */}
       <div
         className={cn(
-          "flex flex-col bg-background shrink-0 overflow-hidden lg:ml-64",
+          "flex flex-col bg-background shrink-0 overflow-hidden transition-[margin] duration-200",
+          sidebarCollapsed ? "lg:ml-14" : "lg:ml-64",
           !selectedId && "flex-1"
         )}
         style={selectedId ? { width: listWidth } : undefined}
@@ -993,8 +1016,6 @@ export default function Inbox() {
           <p className="text-xs text-muted-foreground">AI-sorted by importance</p>
         </div>
 
-        <ActionStrip compact />
-        {/* Feature 2: pass filter callback to SmartStatsBar */}
         <SmartStatsBar onFilterAction={handleFilterAction} activeFilter={activeFilter} />
 
         {/* Email sections */}
