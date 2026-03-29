@@ -4,7 +4,7 @@ import { type EmailWithDecision } from "@workspace/api-client-react";
 import { ActionStrip } from "@/components/ActionStrip";
 import { Sidebar } from "@/components/Sidebar";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
-import { ReplyBox } from "@/components/ReplyBox";
+import { ReplyBox, ReplyModeOptions } from "@/components/ReplyBox";
 import { SmartStatsBar } from "@/components/SmartStatsBar";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useSenderStats } from "@/hooks/use-sender-stats";
@@ -1034,6 +1034,8 @@ function InlineReplyBox({ emailId, from, subject, onClose }: {
   subject: string;
   onClose: () => void;
 }) {
+  const [selectedMode, setSelectedMode] = useState<"plain" | "ai" | null>(null);
+
   return (
     <motion.div
       initial={{ height: 0, opacity: 0 }}
@@ -1052,9 +1054,20 @@ function InlineReplyBox({ emailId, from, subject, onClose }: {
             <X className="w-3 h-3" />
           </button>
         </div>
-        <div className="max-h-72 overflow-y-auto">
-          <ReplyBox emailId={emailId} emailSubject={subject} emailFrom={from} />
-        </div>
+
+        {selectedMode === null ? (
+          <ReplyModeOptions onSelect={(mode) => setSelectedMode(mode)} />
+        ) : (
+          <div className="max-h-72 overflow-y-auto">
+            <ReplyBox
+              emailId={emailId}
+              emailSubject={subject}
+              emailFrom={from}
+              initialMode={selectedMode}
+              onBack={() => setSelectedMode(null)}
+            />
+          </div>
+        )}
       </div>
     </motion.div>
   );

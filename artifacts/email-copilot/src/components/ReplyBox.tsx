@@ -191,6 +191,42 @@ function WhyItWorks({ text }: { text: string }) {
   );
 }
 
+// ── Reply Mode Options (shared) ───────────────────────────────────
+export function ReplyModeOptions({ onSelect }: { onSelect: (mode: "plain" | "ai") => void }) {
+  return (
+    <div className="p-1">
+      <button
+        onClick={() => onSelect("plain")}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/50 transition-colors text-left group/item rounded-lg"
+      >
+        <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0 group-hover/item:bg-secondary/80 transition-colors">
+          <PenLine className="w-4 h-4 text-foreground/70" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-foreground">Reply normally</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">Write a plain text reply yourself</div>
+        </div>
+      </button>
+
+      <div className="mx-4 h-px bg-border/50" />
+
+      <button
+        onClick={() => onSelect("ai")}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-violet-400/5 transition-colors text-left group/item rounded-lg"
+      >
+        <div className="w-8 h-8 rounded-xl bg-violet-400/10 flex items-center justify-center shrink-0 group-hover/item:bg-violet-400/20 transition-colors">
+          <Wand2 className="w-4 h-4 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-foreground">Reply with AI</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">4 outcome-optimised variants · intent · strategy</div>
+        </div>
+        <Sparkles className="w-3.5 h-3.5 text-violet-400/70 shrink-0" />
+      </button>
+    </div>
+  );
+}
+
 // ── Reply Mode Picker ─────────────────────────────────────────────
 function ReplyModePicker({ onSelect }: { onSelect: (mode: "plain" | "ai") => void }) {
   const [open, setOpen] = useState(false);
@@ -250,34 +286,7 @@ function ReplyModePicker({ onSelect }: { onSelect: (mode: "plain" | "ai") => voi
             transition={{ duration: 0.15, ease: "easeOut" }}
             className="absolute bottom-full mb-2 left-0 right-0 z-50 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
           >
-            <button
-              onClick={() => { setOpen(false); onSelect("plain"); }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/50 transition-colors text-left group/item"
-            >
-              <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0 group-hover/item:bg-secondary/80 transition-colors">
-                <PenLine className="w-4 h-4 text-foreground/70" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-foreground">Reply normally</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">Write a plain text reply yourself</div>
-              </div>
-            </button>
-
-            <div className="mx-4 h-px bg-border/50" />
-
-            <button
-              onClick={() => { setOpen(false); onSelect("ai"); }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-violet-400/5 transition-colors text-left group/item"
-            >
-              <div className="w-8 h-8 rounded-xl bg-violet-400/10 flex items-center justify-center shrink-0 group-hover/item:bg-violet-400/20 transition-colors">
-                <Wand2 className="w-4 h-4 text-violet-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-foreground">Reply with AI</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">4 outcome-optimised variants · intent · strategy</div>
-              </div>
-              <Sparkles className="w-3.5 h-3.5 text-violet-400/70 shrink-0" />
-            </button>
+            <ReplyModeOptions onSelect={(mode) => { setOpen(false); onSelect(mode); }} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -407,10 +416,12 @@ interface ReplyBoxProps {
   threadId?: string | null;
   defaultTone?: Tone;
   onSent?: () => void;
+  initialMode?: ReplyMode;
+  onBack?: () => void;
 }
 
-export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTone = "professional", onSent }: ReplyBoxProps) {
-  const [mode, setMode] = useState<ReplyMode>("picker");
+export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTone = "professional", onSent, initialMode = "picker", onBack }: ReplyBoxProps) {
+  const [mode, setMode] = useState<ReplyMode>(initialMode);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [replies, setReplies] = useState<GeneratedReplies | null>(null);
@@ -432,6 +443,15 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
       ta.style.height = `${ta.scrollHeight}px`;
     }
   }, [editedContent]);
+
+  // Back to picker (or external handler when used inline)
+  const goBack = useCallback(() => {
+    if (onBack) {
+      onBack();
+    } else {
+      setMode("picker");
+    }
+  }, [onBack]);
 
   // Open AI mode → auto-generate
   const handleSelectAI = useCallback(async () => {
@@ -517,6 +537,14 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
     }
   }, [emailId, isGenerating, activeVariant]);
 
+  // Auto-generate when initialized directly in AI mode
+  useEffect(() => {
+    if (initialMode === "ai") {
+      generate(tone, false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleVariantSwitch = (variant: VariantType) => {
     setActiveVariant(variant);
     const content = replies?.replies.find((r) => r.type === variant)?.content || "";
@@ -566,7 +594,7 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
       }
 
       toast.success("Reply sent!", { description: `To: ${emailFrom}` });
-      setMode("picker");
+      goBack();
       onSent?.();
     } catch (err) {
       toast.error("Failed to send reply", { description: (err as Error).message });
@@ -599,9 +627,9 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
       <PlainReplyBox
         emailId={emailId}
         emailFrom={emailFrom}
-        onCancel={() => setMode("picker")}
+        onCancel={goBack}
         onSent={() => {
-          setMode("picker");
+          goBack();
           onSent?.();
         }}
       />
@@ -746,7 +774,7 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setMode("picker")}
+                  onClick={goBack}
                   className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 >
                   Cancel
