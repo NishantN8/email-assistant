@@ -231,10 +231,12 @@ function EmailDetailPanel({
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const [showForward, setShowForward] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showReply, setShowReply] = useState(false);
 
   useEffect(() => {
     markedRead.current = false;
     setBodyExpanded(false);
+    setShowReply(false);
   }, [emailId]);
 
   useEffect(() => {
@@ -280,7 +282,16 @@ function EmailDetailPanel({
           <ArrowLeft className="w-3.5 h-3.5" /> Back
         </button>
         <div className="flex items-center gap-0.5">
-          <button onClick={onReply} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Reply (r)">
+          <button
+            onClick={() => { setShowReply((v) => !v); onReply(); }}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              showReply
+                ? "bg-primary/10 text-primary"
+                : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+            title="Reply (r)"
+          >
             <Reply className="w-3.5 h-3.5" />
           </button>
           <button onClick={onArchive} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Archive (e)">
@@ -391,7 +402,7 @@ function EmailDetailPanel({
             <div className="flex gap-2 pt-1">
               {isReply ? (
                 <button
-                  onClick={() => document.getElementById("reply-box-trigger")?.click()}
+                  onClick={() => setShowReply(true)}
                   className={cn(
                     "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border",
                     actionMeta.color, actionMeta.border, actionMeta.bg,
@@ -451,12 +462,28 @@ function EmailDetailPanel({
           </motion.div>
         )}
 
-        {/* ── 4. REPLY BOX (if AI recommends reply) ── */}
-        {isReply && (
-          <div className="mx-4 mt-3">
-            <ReplyBox emailId={emailId} emailSubject={email.subject} emailFrom={email.from} />
-          </div>
-        )}
+        {/* ── 4. REPLY BOX — shown when user clicks Reply or Compose Reply ── */}
+        <AnimatePresence>
+          {showReply && (
+            <motion.div
+              key="reply-box"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18 }}
+              className="mx-4 mt-3"
+            >
+              <ReplyBox
+                emailId={emailId}
+                emailSubject={email.subject}
+                emailFrom={email.from}
+                threadId={email.threadId}
+                onSent={() => setShowReply(false)}
+                onBack={() => setShowReply(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── 5. EMAIL BODY — collapsed by default ── */}
         <div className="mx-4 mt-3 mb-6">
@@ -485,12 +512,6 @@ function EmailDetailPanel({
               </motion.div>
             )}
           </AnimatePresence>
-          {/* Show reply box below body if NOT a reply recommendation (for manual reply) */}
-          {!isReply && bodyExpanded && (
-            <div className="mt-3">
-              <ReplyBox emailId={emailId} emailSubject={email.subject} emailFrom={email.from} />
-            </div>
-          )}
         </div>
       </div>
 
