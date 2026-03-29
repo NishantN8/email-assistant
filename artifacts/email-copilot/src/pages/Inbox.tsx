@@ -266,7 +266,7 @@ function EmailDetailPanel({
   useEffect(() => {
     if (replyTrigger !== undefined && replyTrigger !== prevTrigger.current) {
       prevTrigger.current = replyTrigger;
-      setReplyMode("plain");
+      setReplyMode("ai");
       setReplyOpen(true);
     }
   }, [replyTrigger]);
@@ -279,7 +279,7 @@ function EmailDetailPanel({
   }, [data, emailId, logAction]);
 
   const handleReplyClick = useCallback(() => {
-    setReplyMode("picker");
+    setReplyMode("ai");
     setReplyOpen((v) => !v);
     onReply();
   }, [onReply]);

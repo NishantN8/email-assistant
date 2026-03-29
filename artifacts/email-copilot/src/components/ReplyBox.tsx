@@ -643,13 +643,14 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
       animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl border border-violet-400/20 bg-card overflow-hidden"
     >
-      {/* ── Header: tone switcher ── */}
+      {/* ── Header: tone switcher + escape hatch ── */}
       <div className="px-4 py-2.5 border-b border-border/50 flex items-center justify-between bg-violet-400/[0.03]">
         <div className="flex items-center gap-2">
-          <MessageSquare className="w-3.5 h-3.5 text-violet-400" />
-          <span className="font-bold text-xs text-foreground uppercase tracking-wider">AI Reply Strategist</span>
+          <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+          <span className="font-bold text-xs text-foreground uppercase tracking-wider">AI Reply</span>
+          <ModelBadge model={currentModel} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {TONES.map((t) => (
             <button
               key={t.value}
@@ -665,6 +666,21 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
               {t.label}
             </button>
           ))}
+          <div className="w-px h-4 bg-border/50" />
+          <button
+            onClick={() => setMode("plain")}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            title="Switch to plain text"
+          >
+            <PenLine className="w-3 h-3" />
+            Write myself
+          </button>
+          <button
+            onClick={goBack}
+            className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
