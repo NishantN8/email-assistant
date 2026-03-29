@@ -239,6 +239,7 @@ function EmailDetailPanel({
   const markedRead = useRef(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
+  const [replyMode, setReplyMode] = useState<"picker" | "plain" | "ai">("picker");
   const [showForward, setShowForward] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
@@ -246,6 +247,7 @@ function EmailDetailPanel({
     markedRead.current = false;
     setBodyExpanded(false);
     setReplyOpen(false);
+    setReplyMode("picker");
   }, [emailId]);
 
   useEffect(() => {
@@ -256,9 +258,20 @@ function EmailDetailPanel({
   }, [data, emailId, logAction]);
 
   const handleReplyClick = useCallback(() => {
+    setReplyMode("picker");
     setReplyOpen((v) => !v);
     onReply();
   }, [onReply]);
+
+  const handleOpenAIReply = useCallback(() => {
+    setReplyMode("ai");
+    setReplyOpen(true);
+  }, []);
+
+  const handleOpenPlainReply = useCallback(() => {
+    setReplyMode("plain");
+    setReplyOpen(true);
+  }, []);
 
   if (isLoading) {
     return (
@@ -431,34 +444,45 @@ function EmailDetailPanel({
             {/* Primary action button */}
             <div className="flex gap-2 pt-1">
               {isReply ? (
-                <button
-                  onClick={() => setReplyOpen((v) => !v)}
-                  className={cn(
-                    "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border",
-                    actionMeta.color, actionMeta.border, actionMeta.bg,
-                    "hover:brightness-110 active:scale-[0.98]"
-                  )}
-                >
-                  ↩ Compose Reply
-                </button>
+                <>
+                  <button
+                    onClick={handleOpenAIReply}
+                    className={cn(
+                      "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border flex items-center justify-center gap-1.5",
+                      actionMeta.color, actionMeta.border, actionMeta.bg,
+                      "hover:brightness-110 active:scale-[0.98]"
+                    )}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Reply with AI
+                  </button>
+                  <button
+                    onClick={handleOpenPlainReply}
+                    className="px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-black/20 border border-border/30 transition-colors"
+                  >
+                    Write Reply
+                  </button>
+                </>
               ) : (
-                <button
-                  onClick={onArchive}
-                  className={cn(
-                    "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border",
-                    actionMeta.color, actionMeta.border, actionMeta.bg,
-                    "hover:brightness-110 active:scale-[0.98]"
-                  )}
-                >
-                  {actionMeta.icon} Execute: {actionMeta.label}
-                </button>
+                <>
+                  <button
+                    onClick={onArchive}
+                    className={cn(
+                      "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border",
+                      actionMeta.color, actionMeta.border, actionMeta.bg,
+                      "hover:brightness-110 active:scale-[0.98]"
+                    )}
+                  >
+                    {actionMeta.icon} {actionMeta.label}
+                  </button>
+                  <button
+                    onClick={handleOpenPlainReply}
+                    className="px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-black/20 border border-border/30 transition-colors"
+                  >
+                    ↩ Reply
+                  </button>
+                </>
               )}
-              <button
-                onClick={onArchive}
-                className="px-3 py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-black/20 border border-border/30 transition-colors"
-              >
-                Skip
-              </button>
             </div>
           </motion.div>
         )}
@@ -492,9 +516,9 @@ function EmailDetailPanel({
           </motion.div>
         )}
 
-        {/* ── 4. REPLY BOX (if open manually or AI recommends reply) ── */}
+        {/* ── 4. REPLY BOX (opens when user clicks Reply with AI or Write Reply) ── */}
         <AnimatePresence>
-          {(replyOpen || isReply) && (
+          {replyOpen && (
             <motion.div
               key="reply-box"
               initial={{ height: 0, opacity: 0 }}
@@ -504,10 +528,12 @@ function EmailDetailPanel({
               className="overflow-hidden mx-4 mt-3"
             >
               <ReplyBox
+                key={replyMode}
                 emailId={emailId}
                 emailSubject={email.subject}
                 emailFrom={email.from}
                 threadId={email.threadId}
+                initialMode={replyMode}
                 onSent={() => setReplyOpen(false)}
                 onBack={() => setReplyOpen(false)}
               />
@@ -542,15 +568,22 @@ function EmailDetailPanel({
               </motion.div>
             )}
           </AnimatePresence>
-          {/* Manual reply box below body if reply is not already shown above */}
-          {!isReply && !replyOpen && bodyExpanded && (
-            <div className="mt-3">
+          {/* Reply buttons below email body when body is expanded */}
+          {!replyOpen && bodyExpanded && (
+            <div className="mt-3 flex gap-2">
               <button
-                onClick={() => setReplyOpen(true)}
-                className="w-full py-2 px-3 rounded-xl border border-border/30 hover:bg-secondary/40 text-muted-foreground text-xs transition-colors flex items-center gap-2"
+                onClick={handleOpenAIReply}
+                className="flex-1 py-2 px-3 rounded-xl border border-border/30 hover:bg-violet-400/10 hover:border-violet-400/30 text-muted-foreground hover:text-violet-400 text-xs font-bold uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
               >
-                <Reply className="w-3.5 h-3.5" />
-                Write a reply
+                <Sparkles className="w-3 h-3" />
+                Reply with AI
+              </button>
+              <button
+                onClick={handleOpenPlainReply}
+                className="flex-1 py-2 px-3 rounded-xl border border-border/30 hover:bg-secondary/40 text-muted-foreground hover:text-foreground text-xs font-bold uppercase tracking-wide transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Reply className="w-3 h-3" />
+                Write Reply
               </button>
             </div>
           )}
