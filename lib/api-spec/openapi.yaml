@@ -288,6 +288,10 @@ components:
           type: array
           items:
             type: string
+        modelSource:
+          type: string
+          enum: [local, cloud, hybrid]
+          description: Which AI tier produced this decision (local=rule-based, cloud=LLM, hybrid=both)
         createdAt:
           type: string
       required:

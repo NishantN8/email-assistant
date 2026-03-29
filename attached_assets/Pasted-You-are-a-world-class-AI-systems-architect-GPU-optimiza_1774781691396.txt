@@ -1,0 +1,229 @@
+You are a world-class AI systems architect, GPU optimization expert, and full-stack engineer.
+
+Your task is to build a production-grade AI email copilot system that uses a hybrid AI architecture:
+
+* Local LLM (GPU-accelerated via NVIDIA)
+* Cloud LLM (OpenAI, Gemini, etc.)
+* Intelligent orchestration layer
+
+The system must dynamically decide which model to use based on cost, latency, complexity, and importance.
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Build an AI system that is:
+
+* Fast (local inference using GPU)
+* Smart (cloud reasoning when needed)
+* Cost-efficient (minimize API usage)
+* Adaptive (chooses best model per task)
+
+---
+
+# 🧠 HYBRID AI ARCHITECTURE
+
+## Model Layers
+
+### 1. Local Models (GPU - PRIMARY)
+
+Use NVIDIA GPU via:
+
+* Ollama / llama.cpp (GPU mode)
+* vLLM (preferred for performance)
+* TensorRT / CUDA acceleration
+
+Use for:
+
+* Email classification
+* Priority scoring
+* Lightweight summarization
+* Embedding generation
+
+---
+
+### 2. Cloud Models (SECONDARY)
+
+Use:
+
+* OpenAI (GPT-4 / GPT-4o-mini)
+* Gemini
+
+Use ONLY when:
+
+* Email is high priority
+* Deep reasoning is required
+* Complex reply generation needed
+
+---
+
+# ⚡ MODEL ORCHESTRATION ENGINE (CRITICAL)
+
+Implement a decision router:
+
+```ts
+function selectModel(task, priority) {
+  if (task === "classification") return "local"
+
+  if (task === "summary" && priority < 70)
+    return "local"
+
+  if (task === "reasoning" && priority > 70)
+    return "cloud"
+
+  if (task === "reply" && priority > 80)
+    return "cloud"
+
+  return "local"
+}
+```
+
+---
+
+# 🧠 GPU UTILIZATION (NVIDIA)
+
+* Ensure models run on GPU (CUDA enabled)
+* Batch multiple email inferences
+* Use async job queue for inference
+
+Example:
+
+```bash
+ollama run llama3 --gpu
+```
+
+---
+
+# ⚡ AI PIPELINE (HYBRID)
+
+1. Email arrives (queue)
+2. Local model:
+   → classification
+   → priority scoring
+3. If priority > threshold:
+   → send to cloud model
+   → deep reasoning + explanation
+4. Store final decision
+
+---
+
+# 🧠 EMBEDDINGS + MEMORY (LOCAL GPU)
+
+* Generate embeddings locally
+* Store in vector DB (pgvector or similar)
+* Use for:
+
+  * semantic similarity
+  * clustering emails
+  * behavior learning
+
+---
+
+# ⚡ COST + LATENCY OPTIMIZATION
+
+* Default to local model
+* Only escalate to cloud when needed
+* Cache AI outputs
+* Avoid duplicate inference
+
+---
+
+# 🧠 BACKEND INTEGRATION
+
+* BullMQ queue for:
+
+  * inference jobs
+  * Gmail sync
+* Separate workers:
+
+  * local inference worker (GPU)
+  * cloud inference worker
+
+---
+
+# ⚡ WORKER DESIGN
+
+## Local Worker
+
+* Handles:
+
+  * classification
+  * scoring
+  * embeddings
+* Runs on GPU
+
+## Cloud Worker
+
+* Handles:
+
+  * reasoning
+  * reply generation
+* Uses API
+
+---
+
+# 🎨 FRONTEND (AI-AWARE UI)
+
+Show:
+
+* Which model was used:
+  → 🧠 Local AI
+  → ☁️ Cloud AI
+
+* Confidence level
+
+* Reason
+
+---
+
+# 🧠 SMART FEATURES
+
+* Auto-switch models based on:
+
+  * system load
+  * GPU availability
+  * API quota
+
+* Fallback:
+  → If GPU busy → use cloud
+  → If API fails → fallback to local
+
+---
+
+# 🚫 CONSTRAINTS
+
+* NEVER use cloud for all tasks
+* ALWAYS prioritize local GPU usage
+* NEVER block UI for inference
+* ALWAYS use async processing
+
+---
+
+# 🎯 OUTPUT REQUIREMENTS
+
+Generate:
+
+1. Hybrid AI architecture (local + cloud)
+2. Model router implementation
+3. GPU worker setup (Node.js + queue)
+4. Cloud fallback system
+5. Integration with decision engine
+6. Cost-aware orchestration logic
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a system that:
+
+* Uses GPU like a pro
+* Minimizes API cost
+* Feels real-time
+* Adapts dynamically
+* Scales to production
+
+This should feel like:
+
+→ Cursor AI + Perplexity + Gmail combined
+
+You are building the most intelligent email system ever created.

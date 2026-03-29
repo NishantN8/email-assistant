@@ -13,6 +13,7 @@ export const aiDecisionsTable = pgTable("ai_decisions", {
   reason: text("reason").notNull().default(""),
   summary: text("summary").default(""),
   keyPoints: jsonb("key_points").$type<string[]>().default([]),
+  modelSource: text("model_source").notNull().default("local"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

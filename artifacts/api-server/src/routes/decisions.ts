@@ -116,6 +116,7 @@ async function deepReason(email: {
   reason: string;
   summary: string;
   keyPoints: string[];
+  modelSource: string;
 }> {
   const systemPrompt = `You are an elite AI email analysis engine. You receive pre-scored emails and produce refined decisions.
 
@@ -167,6 +168,7 @@ ${email.body || email.snippet}`;
       reason: parsed.reason || "AI analysis complete",
       summary: parsed.summary || "",
       keyPoints: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+      modelSource: "cloud",
     };
   } catch {
     return {
@@ -178,6 +180,7 @@ ${email.body || email.snippet}`;
       reason: "Rule-based classification applied",
       summary: email.snippet,
       keyPoints: [],
+      modelSource: "local",
     };
   }
 }
@@ -266,6 +269,7 @@ async function runDecisionPipeline(email: {
     reason: `Rule-based: ${baseCategory.toLowerCase()} email, sender score ${senderScore.toFixed(2)}`,
     summary: email.snippet,
     keyPoints: [],
+    modelSource: "local",
   };
 }
 

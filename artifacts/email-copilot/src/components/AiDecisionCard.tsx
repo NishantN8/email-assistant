@@ -1,5 +1,5 @@
 import { type AiDecision } from "@workspace/api-client-react";
-import { Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2 } from "lucide-react";
+import { Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2, Cpu, Cloud } from "lucide-react";
 import { cn, getScoreColor } from "@/lib/utils";
 import { useEmailActions } from "@/hooks/use-emails";
 import { motion } from "framer-motion";
@@ -18,6 +18,25 @@ const ACTION_LABELS: Record<string, string> = {
   track: "Track",
   read_later: "Read Later",
 };
+
+function ModelBadge({ source }: { source?: string }) {
+  if (!source) return null;
+  const isCloud = source === "cloud";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+        isCloud
+          ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+          : "bg-green-500/10 border-green-500/30 text-green-400"
+      )}
+      title={isCloud ? "Cloud LLM (deep reasoning)" : "Local AI (rule-based + weighted scoring)"}
+    >
+      {isCloud ? <Cloud className="w-2.5 h-2.5" /> : <Cpu className="w-2.5 h-2.5" />}
+      {isCloud ? "Cloud AI" : "Local AI"}
+    </span>
+  );
+}
 
 export function AiDecisionCard({
   decision,
@@ -52,11 +71,14 @@ export function AiDecisionCard({
               {decision.priorityScore}
             </div>
           </div>
-          <div className={cn(
-            "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-            getScoreColor(decision.priorityScore)
-          )}>
-            {decision.urgency}
+          <div className="flex flex-col items-end gap-1.5">
+            <div className={cn(
+              "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
+              getScoreColor(decision.priorityScore)
+            )}>
+              {decision.urgency}
+            </div>
+            <ModelBadge source={decision.modelSource} />
           </div>
         </div>
 
@@ -142,6 +164,7 @@ export function AiDecisionCard({
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
           <h2 className="font-semibold text-primary">AI Decision Analysis</h2>
+          <ModelBadge source={decision.modelSource} />
         </div>
         <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest", getScoreColor(decision.priorityScore))}>
           Score: {decision.priorityScore}

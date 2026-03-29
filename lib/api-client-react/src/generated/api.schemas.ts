@@ -87,6 +87,15 @@ export const AiDecisionRecommendedAction = {
   read_later: "read_later",
 } as const;
 
+export type AiDecisionModelSource =
+  (typeof AiDecisionModelSource)[keyof typeof AiDecisionModelSource];
+
+export const AiDecisionModelSource = {
+  local: "local",
+  cloud: "cloud",
+  hybrid: "hybrid",
+} as const;
+
 export interface AiDecision {
   id: string;
   emailId: string;
@@ -98,6 +107,7 @@ export interface AiDecision {
   reason: string;
   summary?: string;
   keyPoints?: string[];
+  modelSource?: AiDecisionModelSource;
   createdAt?: string;
 }
 
