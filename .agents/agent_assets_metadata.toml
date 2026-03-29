@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "mDgsS19llZ7l6GDYN4EuL"
+uri = "file://ARCHITECTURE.md"
+type = "text"
+title = "AI Email Copilot — Architecture & Technical Reference"
