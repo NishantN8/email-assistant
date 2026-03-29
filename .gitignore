@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Sensitive assets — OAuth credentials and uploaded files
+attached_assets/
+*.json.bak
