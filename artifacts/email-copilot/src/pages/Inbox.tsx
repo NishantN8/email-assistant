@@ -15,11 +15,12 @@ import {
   MoreHorizontal, Forward, Keyboard, X,
   ChevronDown, ChevronRight, ChevronUp, Cpu, Cloud, Zap,
   Brain, Sparkles, Star, Users, Filter, TrendingUp, VolumeX, Eye, Minus,
-  MessageSquare,
+  MessageSquare, Send, MailOpen, AlertOctagon,
 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { EmailBodyRenderer } from "@/components/EmailBodyRenderer";
+import { toast } from "sonner";
 
 // ── Keyboard shortcut legend ────────────────────
 function ShortcutBadge({ keys, label }: { keys: string; label: string }) {
@@ -64,6 +65,155 @@ const ACTION_META: Record<string, { label: string; color: string; bg: string; bo
   read_later:{ label: "Read Later",color: "text-purple-400", bg: "bg-purple-400/10", border: "border-purple-400/25", icon: "⏱" },
 };
 
+function InboxMoreMenu({ isRead, onClose, onAction }: {
+  isRead: boolean;
+  onClose: () => void;
+  onAction: (a: "mark_unread" | "trash" | "spam") => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+    >
+      <button
+        onClick={() => { onAction("mark_unread"); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+      >
+        <MailOpen className="w-4 h-4 shrink-0" />
+        {isRead ? "Mark as Unread" : "Mark as Read"}
+      </button>
+      <button
+        onClick={() => { onAction("trash"); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+      >
+        <Trash2 className="w-4 h-4 shrink-0" />
+        Move to Trash
+      </button>
+      <button
+        onClick={() => { onAction("spam"); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+      >
+        <AlertOctagon className="w-4 h-4 shrink-0" />
+        Report Spam
+      </button>
+    </div>
+  );
+}
+
+function InboxForwardDialog({ email, onClose }: {
+  email: { id: string; from: string; fromEmail: string; subject: string; body?: string; snippet: string; receivedAt: string };
+  onClose: () => void;
+}) {
+  const [to, setTo] = useState("");
+  const [body, setBody] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const originalDate = new Date(email.receivedAt).toLocaleString("en-US", {
+    weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const handleSend = async () => {
+    if (!to.trim()) { toast.error("Please enter a recipient email address"); return; }
+    if (!body.trim()) { toast.error("Please add a message before forwarding"); return; }
+    setIsSending(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      const quotedContent = `\n\n---------- Forwarded message ----------\nFrom: ${email.from} <${email.fromEmail}>\nDate: ${originalDate}\nSubject: ${email.subject}\n\n${email.body ? email.body.replace(/<[^>]*>/g, "") : email.snippet}`;
+      const resp = await fetch(`${apiBase}/api/replies/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emailId: email.id, content: body + quotedContent, to, subject: `Fwd: ${email.subject}` }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (data.error === "token_expired" || data.error === "no_gmail_access") {
+          toast.error("Gmail permission needed", { description: "Re-connect Gmail from the sidebar to enable sending" });
+        } else {
+          throw new Error(data.message || "Send failed");
+        }
+        return;
+      }
+      toast.success("Email forwarded!", { description: `To: ${to}` });
+      onClose();
+    } catch (err) {
+      toast.error("Failed to forward email", { description: (err as Error).message });
+    } finally {
+      setIsSending(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 24 }}
+        className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+      >
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Forward className="w-4 h-4 text-primary" />
+            <span className="font-bold text-sm text-foreground">Forward Email</span>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">Subject</span>
+            <span className="text-sm text-foreground truncate">Fwd: {email.subject}</span>
+          </div>
+          <div className="flex items-center gap-2 mb-3 border-b border-border/50 pb-3">
+            <label htmlFor="fwd-to" className="text-xs font-semibold text-muted-foreground w-14 shrink-0">To</label>
+            <input
+              id="fwd-to"
+              type="email"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="recipient@example.com"
+              className="flex-1 bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground"
+              autoFocus
+            />
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Add a message..."
+            rows={4}
+            className="w-full bg-transparent border-0 outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground leading-relaxed"
+          />
+        </div>
+        <div className="mx-5 mb-4 rounded-xl bg-secondary/40 border border-border/50 p-3 max-h-24 overflow-y-auto">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Forwarded message</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
+            From: {email.from} · {originalDate} · {email.subject}
+          </p>
+        </div>
+        <div className="px-5 py-4 border-t border-border flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={isSending || !to.trim()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 shadow-md shadow-primary/20"
+          >
+            {isSending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Forward</>}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function EmailDetailPanel({
   emailId,
   onClose,
@@ -79,6 +229,8 @@ function EmailDetailPanel({
   const { logAction } = useEmailActions();
   const markedRead = useRef(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [showForward, setShowForward] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     markedRead.current = false;
@@ -134,12 +286,48 @@ function EmailDetailPanel({
           <button onClick={onArchive} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Archive (e)">
             <Archive className="w-3.5 h-3.5" />
           </button>
-          <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Forward">
-            <Forward className="w-3.5 h-3.5" />
-          </button>
-          <button className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="More">
-            <MoreHorizontal className="w-3.5 h-3.5" />
-          </button>
+          {data && (
+            <button
+              onClick={() => setShowForward(true)}
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+              title="Forward"
+            >
+              <Forward className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <div className="relative">
+            <button
+              onClick={() => setShowMoreMenu((v) => !v)}
+              className={cn(
+                "p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors",
+                showMoreMenu && "bg-secondary text-foreground"
+              )}
+              title="More options"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            <AnimatePresence>
+              {showMoreMenu && data && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <InboxMoreMenu
+                    isRead={data.email.isRead}
+                    onClose={() => setShowMoreMenu(false)}
+                    onAction={(action) => {
+                      logAction.mutate({ data: { emailId, action } });
+                      if (action === "mark_unread") toast.success("Marked as unread");
+                      else if (action === "trash") { toast.success("Moved to Trash"); onArchive(); }
+                      else if (action === "spam") { toast.success("Reported as Spam"); onArchive(); }
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -305,6 +493,16 @@ function EmailDetailPanel({
           )}
         </div>
       </div>
+
+      {/* Forward Dialog */}
+      <AnimatePresence>
+        {showForward && (
+          <InboxForwardDialog
+            email={email}
+            onClose={() => setShowForward(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

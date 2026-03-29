@@ -143,10 +143,17 @@ router.post("/actions", async (req, res) => {
       createdAt: new Date(),
     });
 
-    if (action === "open") {
+    if (action === "open" || action === "mark_read") {
       await db
         .update(emailsTable)
         .set({ isRead: true, updatedAt: new Date() })
+        .where(eq(emailsTable.id, emailId));
+    }
+
+    if (action === "mark_unread") {
+      await db
+        .update(emailsTable)
+        .set({ isRead: false, updatedAt: new Date() })
         .where(eq(emailsTable.id, emailId));
     }
 
@@ -154,6 +161,30 @@ router.post("/actions", async (req, res) => {
       await db
         .update(emailsTable)
         .set({ isStarred: true, updatedAt: new Date() })
+        .where(eq(emailsTable.id, emailId));
+    }
+
+    if (action === "trash") {
+      const existingLabels = (email.labels as string[]) || [];
+      const updatedLabels = [
+        ...existingLabels.filter((l) => l !== "INBOX"),
+        "TRASH",
+      ];
+      await db
+        .update(emailsTable)
+        .set({ labels: updatedLabels, updatedAt: new Date() })
+        .where(eq(emailsTable.id, emailId));
+    }
+
+    if (action === "spam") {
+      const existingLabels = (email.labels as string[]) || [];
+      const updatedLabels = [
+        ...existingLabels.filter((l) => l !== "INBOX"),
+        "SPAM",
+      ];
+      await db
+        .update(emailsTable)
+        .set({ labels: updatedLabels, updatedAt: new Date() })
         .where(eq(emailsTable.id, emailId));
     }
 

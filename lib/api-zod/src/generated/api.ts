@@ -251,6 +251,9 @@ export const LogActionBody = zod.object({
     "archive",
     "star",
     "mark_read",
+    "mark_unread",
+    "trash",
+    "spam",
     "override_decision",
   ]),
   decisionOverride: zod

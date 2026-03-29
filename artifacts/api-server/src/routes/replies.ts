@@ -170,10 +170,12 @@ router.get("/replies/stream", async (req, res) => {
 // Send reply via Gmail API
 router.post("/replies/send", async (req, res) => {
   try {
-    const { emailId, content, replyId } = req.body as {
+    const { emailId, content, replyId, to: overrideTo, subject: overrideSubject } = req.body as {
       emailId: string;
       content: string;
       replyId?: string;
+      to?: string;
+      subject?: string;
     };
 
     if (!emailId || !content?.trim()) {
@@ -223,17 +225,25 @@ router.post("/replies/send", async (req, res) => {
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
     // Build RFC 2822 MIME message
-    const subject = email.subject.startsWith("Re:") ? email.subject : `Re: ${email.subject}`;
-    const rawMessage = [
-      `To: ${email.fromEmail}`,
+    const isForward = !!overrideTo;
+    const toAddress = overrideTo || email.fromEmail;
+    const subject = overrideSubject || (email.subject.startsWith("Re:") ? email.subject : `Re: ${email.subject}`);
+
+    const headers = [
+      `To: ${toAddress}`,
       `Subject: ${subject}`,
-      `In-Reply-To: ${email.gmailId || ""}`,
-      `References: ${email.gmailId || ""}`,
       `Content-Type: text/plain; charset=utf-8`,
       `MIME-Version: 1.0`,
-      ``,
-      content.trim(),
-    ].join("\r\n");
+    ];
+
+    if (!isForward) {
+      headers.push(
+        `In-Reply-To: ${email.gmailId || ""}`,
+        `References: ${email.gmailId || ""}`
+      );
+    }
+
+    const rawMessage = [...headers, ``, content.trim()].join("\r\n");
 
     const encodedMessage = Buffer.from(rawMessage)
       .toString("base64")
@@ -245,7 +255,7 @@ router.post("/replies/send", async (req, res) => {
       userId: "me",
       requestBody: {
         raw: encodedMessage,
-        threadId: email.threadId || undefined,
+        threadId: isForward ? undefined : (email.threadId || undefined),
       },
     });
 
