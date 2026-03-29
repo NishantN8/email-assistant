@@ -1,0 +1,306 @@
+You are a world-class product designer (Superhuman, Linear, Notion level) and senior frontend/backend engineer.
+
+Your task is to analyze my AI email copilot system and design + implement the following missing features with pixel-perfect UI and deep AI integration:
+
+---
+
+# 🎯 OBJECTIVE
+
+Transform the inbox into a:
+
+→ Decision-first
+→ AI-assisted
+→ Behavior-aware
+→ High-speed productivity system
+
+Every UI element must reduce cognitive load and increase action speed.
+
+---
+
+# 🧠 FEATURES TO IMPLEMENT (CRITICAL)
+
+---
+
+## 🔥 1. INLINE AI REPLY BOX (INSIDE INBOX LIST)
+
+### ❗ CURRENT STATE:
+
+* Dumb textarea or missing
+
+### ✅ TARGET:
+
+Design a **context-aware inline AI ReplyBox** directly inside the inbox list item.
+
+---
+
+### 🧠 BEHAVIOR:
+
+* Appears ONLY when:
+
+  * AI action = "reply"
+  * OR user clicks email
+
+* Auto-fetches AI-generated replies:
+
+  * Short reply
+  * Detailed reply
+  * Friendly tone
+
+---
+
+### 🎨 UI DESIGN:
+
+* Expandable card inside email item
+* Clean minimal design (Superhuman style)
+* Sections:
+
+1. Suggested Replies (tabs/buttons)
+2. Editable textarea
+3. Action buttons:
+
+   * Send
+   * Regenerate
+   * Change Tone
+
+---
+
+### ⚡ ADVANCED:
+
+* Show model used:
+  → 🧠 Local AI
+  → ☁️ Cloud AI
+
+* Show confidence score
+
+---
+
+---
+
+## 🔥 2. SENDER TRUST PANEL (RIGHT SIDE)
+
+### ❗ CURRENT STATE:
+
+* Missing
+
+### ✅ TARGET:
+
+Add a **Sender Intelligence Panel** in the right sidebar.
+
+---
+
+### 🧠 DATA SOURCE:
+
+Use:
+GET /api/emails/:id/sender
+
+---
+
+### 🎨 UI DESIGN:
+
+Display:
+
+* Sender name + avatar
+* Trust Score (0–100)
+* Interaction stats:
+
+  * Reply rate
+  * Open rate
+  * Ignore rate
+
+---
+
+### ⚡ VISUAL:
+
+* Progress bars
+* Color-coded trust:
+
+  * Green → high trust
+  * Yellow → medium
+  * Red → low
+
+---
+
+### 🧠 AI INSIGHT:
+
+Show:
+
+"You usually reply to this sender"
+"You often ignore similar emails"
+
+---
+
+---
+
+## 🔥 3. SMART STATS BAR (TOP OF INBOX)
+
+### ❗ CURRENT STATE:
+
+* Missing
+
+### ✅ TARGET:
+
+Add a **Smart Metrics Bar** above inbox.
+
+---
+
+### 🧠 DATA SOURCE:
+
+GET /api/emails/inbox-stats
+
+---
+
+### 🎨 UI DESIGN:
+
+Display cards:
+
+* 📩 Emails processed today
+* ⚡ Emails needing action
+* 🧠 AI accuracy (%)
+* ⏱ Time saved
+
+---
+
+### ⚡ UX:
+
+* Animated counters
+* Click → filter inbox
+
+---
+
+---
+
+## 🔥 4. INBOX INTELLIGENCE UPGRADE
+
+---
+
+### 🧠 Enhance EmailCard:
+
+Add:
+
+* Priority score (visual badge)
+* AI reason (short tag)
+* Model used (local/cloud icon)
+* Quick actions (hover):
+
+  * Reply
+  * Archive
+  * Mark important
+
+---
+
+### ⚡ BEHAVIOR:
+
+* High priority → highlighted
+* Low priority → collapsed
+* Repeated senders → bundled
+
+---
+
+---
+
+## 🔥 5. EXPLAINABILITY LAYER
+
+Add:
+
+"Why this email?"
+
+On click → show:
+
+* Reason
+* Behavior influence
+* Similar past emails
+
+---
+
+---
+
+## 🔥 6. API INTEGRATION
+
+Ensure full wiring:
+
+---
+
+### Sender Stats API
+
+GET /api/emails/:id/sender
+
+Return:
+
+{
+trust_score,
+reply_rate,
+open_rate,
+ignore_rate,
+insights[]
+}
+
+---
+
+### Inbox Stats API
+
+GET /api/emails/inbox-stats
+
+Return:
+
+{
+total_processed,
+action_required,
+accuracy,
+time_saved
+}
+
+---
+
+---
+
+## 🔥 7. PERFORMANCE + UX RULES
+
+* Do NOT block UI for AI
+* Lazy load panels
+* Cache responses
+* Use skeleton loaders
+* Use optimistic updates
+
+---
+
+---
+
+## 🚫 DESIGN RULES
+
+* No clutter
+* No Gmail-like UI
+* No equal weight for all emails
+* Focus on speed + decisions
+
+---
+
+---
+
+# 🎯 OUTPUT
+
+Generate:
+
+1. Pixel-perfect React components (Next.js + Tailwind)
+2. Updated EmailCard with inline ReplyBox
+3. Sender Trust Panel UI
+4. Smart Stats Bar UI
+5. API integration logic
+6. State management (React Query/SWR)
+7. Clean animations and transitions
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a UI that:
+
+* Feels intelligent
+* Surfaces decisions instantly
+* Reduces thinking effort
+* Is clearly superior to Gmail
+
+This should feel like:
+
+→ Superhuman + Linear + Notion AI combined
+
+You are designing the future of email.

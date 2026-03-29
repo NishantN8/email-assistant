@@ -11,7 +11,9 @@ import { useKeyboardNav } from "@/hooks/use-keyboard";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, ArrowLeft, Reply, Archive, Trash2,
-  MoreHorizontal, Forward, Keyboard, X
+  MoreHorizontal, Forward, Keyboard, X,
+  ChevronDown, ChevronRight, Cpu, Cloud, Zap,
+  Brain, Sparkles
 } from "lucide-react";
 import { formatTimeAgo, getInitials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -424,8 +426,12 @@ export default function Inbox() {
       {/* ── Column 4: AI Decision panel ── */}
       {selectedId && (
         <div className="hidden xl:flex w-72 shrink-0 flex-col border-l border-border/50 bg-card/30 h-screen">
-          <div className="shrink-0 px-4 py-3 border-b border-border/50">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">AI Analysis</h3>
+          <div className="shrink-0 px-4 py-3 border-b border-border/50 flex items-center gap-2">
+            <Brain className="w-3.5 h-3.5 text-primary shrink-0" />
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-foreground leading-none">AI Analysis</h3>
+              <p className="text-[9px] text-muted-foreground mt-0.5">Decision · Trust · Actions</p>
+            </div>
           </div>
           <AnimatePresence mode="wait">
             <motion.div
@@ -455,6 +461,7 @@ function EmailCardRow({
 }) {
   const { email, decision } = data;
   const { logAction } = useEmailActions();
+  const [whyExpanded, setWhyExpanded] = useState(false);
 
   const handleQuickAction = (e: React.MouseEvent, action: "reply" | "ignore" | "archive") => {
     e.preventDefault();
@@ -462,14 +469,33 @@ function EmailCardRow({
     logAction.mutate({ data: { emailId: email.id, action } });
   };
 
-  const scoreColor =
-    email.priorityScore >= 80
-      ? "text-red-400 border-red-400/30 bg-red-400/10"
-      : email.priorityScore >= 60
-      ? "text-orange-400 border-orange-400/30 bg-orange-400/10"
-      : email.priorityScore >= 40
-      ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10"
-      : "text-green-400 border-green-400/30 bg-green-400/10";
+  const handleWhyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setWhyExpanded((v) => !v);
+  };
+
+  const score = email.priorityScore ?? 0;
+  const isHigh = score >= 80;
+  const isOrange = score >= 60 && score < 80;
+  const isYellow = score >= 40 && score < 60;
+
+  const leftBorderColor = isHigh
+    ? "border-l-red-500"
+    : isOrange
+    ? "border-l-orange-400"
+    : isSelected
+    ? "border-l-primary"
+    : "border-l-transparent";
+
+  const scoreBadge = isHigh
+    ? "text-red-400 border-red-400/30 bg-red-400/10"
+    : isOrange
+    ? "text-orange-400 border-orange-400/30 bg-orange-400/10"
+    : isYellow
+    ? "text-yellow-400 border-yellow-400/30 bg-yellow-400/10"
+    : "text-green-500 border-green-500/20 bg-green-500/8";
+
+  const isCloud = decision?.modelSource?.startsWith("cloud");
 
   return (
     <motion.div
@@ -482,11 +508,11 @@ function EmailCardRow({
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
       className={cn(
-        "w-full text-left px-4 py-3 border-b border-border/30 transition-all group cursor-pointer",
-        isSelected
-          ? "bg-primary/10 border-l-2 border-l-primary"
-          : "hover:bg-secondary/40 border-l-2 border-l-transparent",
-        !email.isRead && !isSelected && "bg-primary/[0.02]"
+        "w-full text-left px-4 py-3 border-b border-border/30 transition-all group cursor-pointer border-l-2",
+        leftBorderColor,
+        isSelected && "bg-primary/10",
+        !isSelected && isHigh && "bg-red-500/[0.04] hover:bg-red-500/[0.07]",
+        !isSelected && !isHigh && "hover:bg-secondary/40"
       )}
     >
       <div className="flex items-start gap-3">
@@ -507,20 +533,79 @@ function EmailCardRow({
             </span>
             <span className="text-[10px] text-muted-foreground shrink-0">{formatTimeAgo(email.receivedAt)}</span>
           </div>
-          <div className={cn("text-sm truncate mb-1", !email.isRead ? "text-foreground font-medium" : "text-muted-foreground")}>
+
+          <div className={cn("text-sm truncate mb-1", !email.isRead ? "text-foreground font-medium" : "text-muted-foreground", isHigh && "font-bold")}>
+            {isHigh && <Zap className="w-3 h-3 inline text-red-400 mr-1 -mt-0.5" />}
             {email.subject}
           </div>
+
           <div className="text-xs text-muted-foreground truncate">{email.snippet}</div>
 
-          {/* AI reason tag */}
+          {/* AI metadata row */}
           {decision && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono", scoreColor)}>
-                {email.priorityScore}
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              {/* Priority score */}
+              <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border font-mono shrink-0", scoreBadge)}>
+                {score}
               </span>
-              <span className="text-[10px] text-muted-foreground italic truncate">{decision.reason}</span>
+
+              {/* Model badge */}
+              <span className={cn(
+                "inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold uppercase border shrink-0",
+                isCloud
+                  ? "text-blue-400 border-blue-400/20 bg-blue-400/8"
+                  : "text-green-400 border-green-400/20 bg-green-400/8"
+              )}>
+                {isCloud ? <Cloud className="w-2 h-2" /> : <Cpu className="w-2 h-2" />}
+              </span>
+
+              {/* Why this email — expandable */}
+              <button
+                onClick={handleWhyClick}
+                className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground italic truncate transition-colors max-w-[180px]"
+                title="Why this email?"
+              >
+                <span className="truncate">{decision.reason}</span>
+                {whyExpanded
+                  ? <ChevronDown className="w-2.5 h-2.5 shrink-0" />
+                  : <ChevronRight className="w-2.5 h-2.5 shrink-0" />
+                }
+              </button>
             </div>
           )}
+
+          {/* Expandable explainability panel */}
+          <AnimatePresence>
+            {whyExpanded && decision && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div
+                  className="mt-2 p-2.5 rounded-lg bg-secondary/60 border border-border/40 space-y-1.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Brain className="w-2.5 h-2.5" /> Why this email?
+                  </p>
+                  <p className="text-xs text-foreground leading-relaxed">{decision.reason}</p>
+                  {decision.summary && (
+                    <p className="text-[10px] text-muted-foreground leading-relaxed border-t border-border/30 pt-1.5 mt-1.5">
+                      {decision.summary}
+                    </p>
+                  )}
+                  <p className="text-[9px] text-muted-foreground/60 flex items-center gap-1">
+                    <Sparkles className="w-2 h-2" />
+                    AI confidence: {Math.round(decision.confidence * 100)}%
+                    {decision.modelSource && ` · Model: ${decision.modelSource}`}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Hover quick actions */}
