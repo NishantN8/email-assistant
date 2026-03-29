@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 interface AuthUser {
   id: string;
@@ -28,6 +28,9 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const popupRef = useRef<Window | null>(null);
+
+  // Clean up interval on unmount
+  useEffect(() => () => stopPolling(), [stopPolling]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-me"],
