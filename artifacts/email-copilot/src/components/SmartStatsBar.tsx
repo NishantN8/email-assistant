@@ -203,6 +203,8 @@ export function SmartStatsBar({ onFilterAction, activeFilter }: SmartStatsBarPro
               count={summary.unreadCount}
               color="text-muted-foreground"
               bg="bg-secondary/50 border-border/50 hover:border-border"
+              onClick={onFilterAction ? () => onFilterAction("unread") : undefined}
+              active={activeFilter === "unread"}
             />
           </>
         )}
