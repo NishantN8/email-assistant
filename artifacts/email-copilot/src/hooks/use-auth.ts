@@ -29,8 +29,17 @@ export function useAuth() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const popupRef = useRef<Window | null>(null);
 
-  // Clean up interval on unmount
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  // Clean up polling interval on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-me"],
@@ -46,13 +55,6 @@ export function useAuth() {
       queryClient.invalidateQueries();
     },
   });
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
 
   const connectGmail = useCallback(() => {
     const oauthUrl = `${window.location.origin}${BASE}/api/auth/google`;
