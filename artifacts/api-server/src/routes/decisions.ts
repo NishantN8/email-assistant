@@ -388,4 +388,85 @@ router.get("/decisions/:emailId", async (req, res) => {
   }
 });
 
+// ── POST /api/decisions/batch ─────────────────────
+// Score all emails that don't have a decision yet (runs in background)
+router.post("/decisions/batch", async (req, res) => {
+  try {
+    const allEmails = await db.select().from(emailsTable);
+    const existingDecisions = await db.select({ emailId: aiDecisionsTable.emailId }).from(aiDecisionsTable);
+    const scoredIds = new Set(existingDecisions.map((d) => d.emailId));
+    const toScore = allEmails.filter((e) => !scoredIds.has(e.id));
+
+    res.json({ queued: toScore.length, message: `Scoring ${toScore.length} emails in background` });
+
+    // Run in background
+    setImmediate(async () => {
+      for (const email of toScore) {
+        try {
+          const result = await runDecisionPipeline({
+            id: email.id,
+            subject: email.subject,
+            from: email.from,
+            fromEmail: email.fromEmail,
+            snippet: email.snippet,
+            body: email.body || "",
+            labels: (email.labels as string[]) || [],
+            receivedAt: email.receivedAt,
+          });
+          const now = new Date();
+          await db.insert(aiDecisionsTable).values({
+            id: randomUUID(),
+            emailId: email.id,
+            ...result,
+            createdAt: now,
+            updatedAt: now,
+          }).onConflictDoNothing();
+          await db.update(emailsTable).set({
+            category: result.category,
+            priorityScore: result.priorityScore,
+            urgency: result.urgency,
+            updatedAt: now,
+          }).where(eq(emailsTable.id, email.id));
+        } catch (e) {
+          console.error("Batch score failed for", email.id, e);
+        }
+      }
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to batch score");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 export default router;
+
+// ── Exported helper for use by sync route ────────
+export async function batchScoreUnscored(): Promise<number> {
+  const allEmails = await db.select().from(emailsTable);
+  const existing = await db.select({ emailId: aiDecisionsTable.emailId }).from(aiDecisionsTable);
+  const scoredIds = new Set(existing.map((d) => d.emailId));
+  const toScore = allEmails.filter((e) => !scoredIds.has(e.id));
+
+  let scored = 0;
+  for (const email of toScore) {
+    try {
+      const result = await runDecisionPipeline({
+        id: email.id,
+        subject: email.subject,
+        from: email.from,
+        fromEmail: email.fromEmail,
+        snippet: email.snippet,
+        body: email.body || "",
+        labels: (email.labels as string[]) || [],
+        receivedAt: email.receivedAt,
+      });
+      const now = new Date();
+      await db.insert(aiDecisionsTable).values({ id: randomUUID(), emailId: email.id, ...result, createdAt: now, updatedAt: now }).onConflictDoNothing();
+      await db.update(emailsTable).set({ category: result.category, priorityScore: result.priorityScore, urgency: result.urgency, updatedAt: now }).where(eq(emailsTable.id, email.id));
+      scored++;
+    } catch (e) {
+      console.error("Batch score failed for", email.id, e);
+    }
+  }
+  return scored;
+}

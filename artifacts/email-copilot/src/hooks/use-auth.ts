@@ -57,6 +57,9 @@ export function useAuth() {
   });
 
   const connectGmail = useCallback(() => {
+    // Prevent multiple concurrent polls
+    if (pollRef.current) return;
+
     const oauthUrl = `${window.location.origin}${BASE}/api/auth/google`;
 
     const popup = window.open(

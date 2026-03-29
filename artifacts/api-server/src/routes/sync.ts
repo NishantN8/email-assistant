@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { batchScoreUnscored } from "./decisions.js";
 import { eq, inArray } from "drizzle-orm";
 import { google } from "googleapis";
 import { db, syncStateTable, emailsTable, usersTable } from "@workspace/db";
@@ -340,6 +341,11 @@ router.post("/sync/trigger", async (req, res) => {
             : "Connect Gmail to sync real emails",
           updatedAt: completedAt,
         }).where(eq(syncStateTable.id, SYNC_STATE_ID));
+
+        // Auto-score any unscored emails in the background
+        if (synced > 0) {
+          batchScoreUnscored().catch((e) => console.error("Auto-score error:", e));
+        }
       } catch (err) {
         console.error("Sync error:", err);
         await db.update(syncStateTable).set({ status: "error", message: "Sync failed — check Gmail permissions", updatedAt: new Date() }).where(eq(syncStateTable.id, SYNC_STATE_ID));
