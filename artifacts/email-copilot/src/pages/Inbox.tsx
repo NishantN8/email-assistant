@@ -17,7 +17,7 @@ import {
   MoreHorizontal, Forward, Keyboard, X,
   ChevronDown, ChevronRight, ChevronUp, ChevronLeft, Cpu, Cloud, Zap,
   Brain, Sparkles, Star, Users, Filter, TrendingUp, VolumeX, Eye, Minus,
-  MessageSquare, Send, MailOpen, AlertOctagon, BrushCleaning,
+  MessageSquare, Send, MailOpen, AlertOctagon, BrushCleaning, Search,
 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -791,7 +791,21 @@ function DragDivider({ onDrag }: { onDrag: (dx: number) => void }) {
 
 // ── Main Inbox component ─────────────────────────
 export default function Inbox() {
-  const { data: response, isLoading } = useGetEmails();
+  // Search state: raw input and debounced query sent to API
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQ(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const { data: response, isLoading } = useGetEmails(
+    debouncedQ ? { q: debouncedQ } : undefined
+  );
   const { logAction } = useEmailActions();
   const queryClient = useQueryClient();
   const taskMap = useEmailTaskMap();
@@ -893,7 +907,13 @@ export default function Inbox() {
     },
     onReply: handleReply,
     onArchive: handleArchive,
-    onEscape: () => setSelectedId(null),
+    onEscape: () => {
+      if (searchInput) {
+        setSearchInput("");
+      } else {
+        setSelectedId(null);
+      }
+    },
   });
 
   const allSections = useMemo(() => [
@@ -983,6 +1003,12 @@ export default function Inbox() {
     });
   }, [sections]);
 
+  // Total visible emails after both search + category filter are applied
+  const visibleCount = useMemo(
+    () => sections.reduce((sum, s) => sum + s.items.length, 0),
+    [sections]
+  );
+
   return (
     <div className="min-h-screen bg-background flex overflow-hidden">
       {/* ── Column 1: Sidebar nav ── */}
@@ -1036,6 +1062,34 @@ export default function Inbox() {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">AI-sorted by importance</p>
+
+          {/* Search bar */}
+          <div className="mt-3 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              ref={searchRef}
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearchInput("");
+                  searchRef.current?.blur();
+                }
+              }}
+              placeholder="Search by sender, subject, or snippet…"
+              className="w-full pl-8 pr-8 py-2 rounded-xl bg-secondary/60 border border-border/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40 transition-colors"
+            />
+            {searchInput && (
+              <button
+                onClick={() => { setSearchInput(""); searchRef.current?.focus(); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <SmartStatsBar onFilterAction={handleFilterAction} activeFilter={activeFilter} />
@@ -1047,10 +1101,31 @@ export default function Inbox() {
               <Loader2 className="w-7 h-7 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground animate-pulse">Analyzing inbox…</p>
             </div>
+          ) : debouncedQ && visibleCount === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 px-8 text-center space-y-3">
+              <Search className="w-10 h-10 text-muted-foreground/30" />
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">No results</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  No emails matched &ldquo;{debouncedQ}&rdquo;
+                </p>
+              </div>
+              <button
+                onClick={() => setSearchInput("")}
+                className="text-xs text-primary hover:underline"
+              >
+                Clear search
+              </button>
+            </div>
           ) : emails.length === 0 ? (
             <EmptyState hasEmails={false} />
           ) : (
             <div className="py-2">
+              {debouncedQ && (
+                <div className="px-4 py-2 text-[11px] text-muted-foreground font-medium">
+                  {visibleCount} result{visibleCount !== 1 ? "s" : ""} for &ldquo;{debouncedQ}&rdquo;
+                </div>
+              )}
               {groupedSections.map((section) => {
                 if (section.items.length === 0) return null;
                 const isCollapsed = collapsedSections.has(section.id);

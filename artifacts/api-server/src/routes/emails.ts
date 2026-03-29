@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and, or, ilike } from "drizzle-orm";
 import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace/db";
 import {
   GetEmailsQueryParams,
@@ -65,13 +65,27 @@ router.get("/emails", async (req, res) => {
     const category = params.success ? params.data.category : undefined;
     const limit = params.success ? (params.data.limit ?? 50) : 50;
     const offset = params.success ? (params.data.offset ?? 0) : 0;
+    const q = params.success ? params.data.q : undefined;
 
     // Exclude archived and trashed emails from inbox
     const inboxFilter = sql`NOT (${emailsTable.labels} @> '["ARCHIVE"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb)`;
 
-    const whereClause = category
-      ? sql`${emailsTable.category} = ${category} AND NOT (${emailsTable.labels} @> '["ARCHIVE"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb)`
-      : inboxFilter;
+    const baseParts = [inboxFilter];
+    if (category) {
+      baseParts.push(sql`${emailsTable.category} = ${category}`);
+    }
+    if (q && q.trim()) {
+      const pattern = `%${q.trim()}%`;
+      baseParts.push(
+        or(
+          ilike(emailsTable.from, pattern),
+          ilike(emailsTable.fromEmail, pattern),
+          ilike(emailsTable.subject, pattern),
+          ilike(emailsTable.snippet, pattern),
+        )!
+      );
+    }
+    const whereClause = baseParts.length === 1 ? baseParts[0] : and(...baseParts)!;
 
     const emailRows = await db
       .select()

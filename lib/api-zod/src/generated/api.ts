@@ -30,6 +30,7 @@ export const GetEmailsQueryParams = zod.object({
     .optional(),
   limit: zod.coerce.number().optional(),
   offset: zod.coerce.number().optional(),
+  q: zod.string().optional(),
 });
 
 export const GetEmailsResponse = zod.object({

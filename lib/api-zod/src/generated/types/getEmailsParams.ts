@@ -11,4 +11,5 @@ export type GetEmailsParams = {
   category?: GetEmailsCategory;
   limit?: number;
   offset?: number;
+  q?: string;
 };
