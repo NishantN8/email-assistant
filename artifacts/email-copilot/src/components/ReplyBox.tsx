@@ -4,6 +4,7 @@ import {
   Sparkles, Send, RefreshCw, Cpu, Cloud, Loader2,
   ChevronDown, CheckCircle2, Edit3, Wand2, Target, User,
   Lightbulb, ChevronRight, Zap, Heart, BarChart2, MessageSquare,
+  PenLine, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 // ── Types ─────────────────────────────────────────────────────────
 type Tone = "professional" | "friendly" | "brief" | "formal";
 type VariantType = "strategic" | "concise" | "persuasive" | "relationship";
+type ReplyMode = "picker" | "plain" | "ai";
 
 interface ReplyVariant {
   type: VariantType;
@@ -189,6 +191,214 @@ function WhyItWorks({ text }: { text: string }) {
   );
 }
 
+// ── Reply Mode Picker ─────────────────────────────────────────────
+function ReplyModePicker({ onSelect }: { onSelect: (mode: "plain" | "ai") => void }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function handleKeydown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeydown);
+    };
+  }, [open]);
+
+  return (
+    <motion.div
+      ref={containerRef}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative"
+    >
+      <button
+        id="reply-box-trigger"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full rounded-2xl border border-border bg-card hover:bg-secondary/50 transition-all p-4 flex items-center gap-3 group text-left"
+      >
+        <div className="w-8 h-8 rounded-xl bg-violet-400/10 flex items-center justify-center shrink-0 group-hover:bg-violet-400/20 transition-colors">
+          <Wand2 className="w-4 h-4 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-foreground text-sm">Reply</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Reply normally or use AI to craft a strategic response
+          </div>
+        </div>
+        <ChevronDown className={cn(
+          "w-4 h-4 text-muted-foreground group-hover:text-foreground transition-all shrink-0",
+          open && "rotate-180"
+        )} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute bottom-full mb-2 left-0 right-0 z-50 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+          >
+            <button
+              onClick={() => { setOpen(false); onSelect("plain"); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-secondary/50 transition-colors text-left group/item"
+            >
+              <div className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center shrink-0 group-hover/item:bg-secondary/80 transition-colors">
+                <PenLine className="w-4 h-4 text-foreground/70" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-foreground">Reply normally</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">Write a plain text reply yourself</div>
+              </div>
+            </button>
+
+            <div className="mx-4 h-px bg-border/50" />
+
+            <button
+              onClick={() => { setOpen(false); onSelect("ai"); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-violet-400/5 transition-colors text-left group/item"
+            >
+              <div className="w-8 h-8 rounded-xl bg-violet-400/10 flex items-center justify-center shrink-0 group-hover/item:bg-violet-400/20 transition-colors">
+                <Wand2 className="w-4 h-4 text-violet-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-foreground">Reply with AI</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">4 outcome-optimised variants · intent · strategy</div>
+              </div>
+              <Sparkles className="w-3.5 h-3.5 text-violet-400/70 shrink-0" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ── Plain Reply Box ───────────────────────────────────────────────
+function PlainReplyBox({
+  emailId,
+  emailFrom,
+  onCancel,
+  onSent,
+}: {
+  emailId: string;
+  emailFrom: string;
+  onCancel: () => void;
+  onSent?: () => void;
+}) {
+  const [content, setContent] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = "auto";
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, [content]);
+
+  const handleSend = async () => {
+    if (!content.trim()) return;
+    setIsSending(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      const resp = await fetch(`${apiBase}/api/replies/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emailId, content }),
+      });
+
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        if (data.error === "token_expired" || data.error === "no_gmail_access") {
+          toast.error("Gmail permission needed", {
+            description: "Re-connect Gmail from the sidebar to enable sending",
+          });
+        } else {
+          throw new Error(data.message || "Send failed");
+        }
+        return;
+      }
+
+      toast.success("Reply sent!", { description: `To: ${emailFrom}` });
+      onSent?.();
+    } catch (err) {
+      toast.error("Failed to send reply", { description: (err as Error).message });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-border bg-card overflow-hidden"
+    >
+      <div className="px-4 py-2.5 border-b border-border/50 flex items-center justify-between bg-background/40">
+        <div className="flex items-center gap-2">
+          <PenLine className="w-3.5 h-3.5 text-foreground/70" />
+          <span className="font-bold text-xs text-foreground uppercase tracking-wider">Reply</span>
+        </div>
+        <button
+          onClick={onCancel}
+          className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="p-4">
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="w-full bg-transparent border-0 focus:ring-0 resize-none text-foreground text-sm leading-relaxed font-sans p-0 min-h-[100px] placeholder:text-muted-foreground outline-none"
+          placeholder="Write your reply..."
+        />
+      </div>
+
+      <div className="px-4 pb-4 flex items-center justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSend}
+          disabled={isSending || !content.trim()}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest shadow-md hover:opacity-90 transition-opacity disabled:opacity-40"
+        >
+          {isSending ? (
+            <><Loader2 className="w-3 h-3 animate-spin" /> Sending…</>
+          ) : (
+            <><Send className="w-3 h-3" /> Send</>
+          )}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── Main ReplyBox Component ───────────────────────────────────────
 interface ReplyBoxProps {
   emailId: string;
@@ -200,7 +410,7 @@ interface ReplyBoxProps {
 }
 
 export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTone = "professional", onSent }: ReplyBoxProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [mode, setMode] = useState<ReplyMode>("picker");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [replies, setReplies] = useState<GeneratedReplies | null>(null);
@@ -223,9 +433,9 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
     }
   }, [editedContent]);
 
-  // Open → auto-generate
-  const handleOpen = useCallback(async () => {
-    setIsOpen(true);
+  // Open AI mode → auto-generate
+  const handleSelectAI = useCallback(async () => {
+    setMode("ai");
     if (!replies) {
       await generate(tone, false);
     }
@@ -356,7 +566,7 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
       }
 
       toast.success("Reply sent!", { description: `To: ${emailFrom}` });
-      setIsOpen(false);
+      setMode("picker");
       onSent?.();
     } catch (err) {
       toast.error("Failed to send reply", { description: (err as Error).message });
@@ -368,32 +578,37 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
   const activeReply = replies?.replies.find((r) => r.type === activeVariant);
   const currentModel = activeReply?.model || replies?.modelUsed;
 
-  // ── Collapsed trigger ─────────────────────────────────────────
-  if (!isOpen) {
+  // ── Picker (collapsed trigger) ──────────────────────────────────
+  if (mode === "picker") {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <button
-          onClick={handleOpen}
-          className="w-full rounded-2xl border border-border bg-card hover:bg-secondary/50 transition-all p-4 flex items-center gap-3 group text-left"
-        >
-          <div className="w-8 h-8 rounded-xl bg-violet-400/10 flex items-center justify-center shrink-0 group-hover:bg-violet-400/20 transition-colors">
-            <Wand2 className="w-4 h-4 text-violet-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-foreground text-sm">AI Reply Strategist</div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              4 outcome-optimised variants · intent · strategy · why it works
-            </div>
-          </div>
-          <ChevronDown className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-        </button>
-      </motion.div>
+      <ReplyModePicker
+        onSelect={(selected) => {
+          if (selected === "ai") {
+            handleSelectAI();
+          } else {
+            setMode("plain");
+          }
+        }}
+      />
     );
   }
 
+  // ── Plain text reply ────────────────────────────────────────────
+  if (mode === "plain") {
+    return (
+      <PlainReplyBox
+        emailId={emailId}
+        emailFrom={emailFrom}
+        onCancel={() => setMode("picker")}
+        onSent={() => {
+          setMode("picker");
+          onSent?.();
+        }}
+      />
+    );
+  }
+
+  // ── AI Reply Strategist ─────────────────────────────────────────
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -531,7 +746,7 @@ export function ReplyBox({ emailId, emailFrom, emailSubject, threadId, defaultTo
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => setMode("picker")}
                   className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                 >
                   Cancel
