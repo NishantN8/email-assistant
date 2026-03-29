@@ -1,9 +1,10 @@
 import { useRoute, Link, useLocation } from "wouter";
 import { useGetEmail } from "@workspace/api-client-react";
 import { useEmailActions } from "@/hooks/use-emails";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Reply, Forward, Archive, Trash2, MoreHorizontal } from "lucide-react";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
+import { ReplyBox } from "@/components/ReplyBox";
 import { formatTimeAgo, getInitials } from "@/lib/utils";
 
 export default function EmailDetail() {
@@ -13,6 +14,7 @@ export default function EmailDetail() {
   
   const { data, isLoading, error } = useGetEmail(id, { query: { enabled: !!id } });
   const { logAction } = useEmailActions();
+  const [replySent, setReplySent] = useState(false);
 
   // Mark as read on mount
   useEffect(() => {
@@ -131,28 +133,25 @@ export default function EmailDetail() {
           )}
         </div>
 
-        {/* Quick Reply Box */}
-        <div className="mt-16 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-start gap-4">
-            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0">
-              ME
-            </div>
-            <div className="flex-1">
-              <textarea 
-                className="w-full bg-transparent border-0 focus:ring-0 resize-none text-foreground placeholder:text-muted-foreground p-0 min-h-[60px]"
-                placeholder="Write a quick reply..."
-              />
-              <div className="flex justify-end mt-2">
-                <button 
-                  onClick={() => handleAction('reply')}
-                  className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-lg shadow-md hover:bg-primary/90 transition-colors text-sm"
-                >
-                  Send Reply
-                </button>
-              </div>
-            </div>
+        {/* AI Reply Box */}
+        <ReplyBox
+          emailId={email.id}
+          emailFrom={email.fromEmail}
+          emailSubject={email.subject}
+          threadId={email.threadId}
+          defaultTone={
+            decision?.recommendedAction === "reply" ? "professional" : "friendly"
+          }
+          onSent={() => {
+            setReplySent(true);
+            logAction.mutate({ data: { emailId: email.id, action: "reply" } });
+          }}
+        />
+        {replySent && (
+          <div className="mt-4 p-3 rounded-xl bg-primary/10 border border-primary/20 text-sm text-primary font-medium flex items-center gap-2">
+            ✓ Reply sent successfully
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

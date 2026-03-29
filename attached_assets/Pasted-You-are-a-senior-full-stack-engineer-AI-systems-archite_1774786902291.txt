@@ -1,0 +1,219 @@
+You are a senior full-stack engineer, AI systems architect, and code auditor.
+
+Your task is to analyze my existing AI email copilot codebase and:
+
+1. Detect what features are already implemented
+2. Identify missing or partially implemented components
+3. Automatically implement missing critical features
+4. Improve weak or rule-based logic into intelligent systems
+
+---
+
+# 🎯 SYSTEM CONTEXT
+
+This is an AI email copilot with:
+
+* Gmail API integration (incremental sync)
+* Node.js + Express backend
+* BullMQ queue system
+* Redis cache
+* Postgres database
+* Hybrid AI (local GPU + cloud LLM)
+* Next.js frontend
+
+The system is intended to be:
+
+→ A decision-first AI assistant (not just an email client)
+
+---
+
+# 🧠 STEP 1: AUDIT CURRENT SYSTEM
+
+Analyze the entire codebase and classify each component as:
+
+* ✅ Fully implemented
+* ⚠️ Partially implemented
+* ❌ Missing
+
+Focus on:
+
+## Core Modules:
+
+1. Gmail Sync (History API)
+2. Queue System (BullMQ)
+3. AI Classification
+4. Priority Scoring
+5. Decision Engine
+6. Reply Engine
+7. User Memory Graph
+8. Model Router (local vs cloud)
+9. GPU Local Inference (Ollama / vLLM)
+10. Cloud Fallback
+11. Vector Memory (pgvector)
+12. Frontend Decision UI
+13. Auto Reply UI
+14. Gmail Send API
+
+---
+
+# 🧠 STEP 2: DETECT GAPS (CRITICAL)
+
+Specifically check:
+
+## ❗ Reply System
+
+* Is reply generation implemented?
+* Are replies shown in UI?
+* Is editing supported?
+* Is Gmail send API connected?
+
+## ❗ Memory System
+
+* Are user interactions stored?
+* Is sender memory influencing decisions?
+
+## ❗ Decision Intelligence
+
+* Is scoring rule-based or ML-style?
+* Is behavior influencing priority?
+
+## ❗ Hybrid AI
+
+* Is local GPU actually used?
+* Is model routing working?
+* Is fallback implemented?
+
+---
+
+# ⚡ STEP 3: IMPLEMENT MISSING FEATURES
+
+Automatically implement:
+
+---
+
+## 🔥 1. Reply Engine (MANDATORY)
+
+* generateReply(email, memory, priority)
+
+* Use hybrid AI (local + cloud)
+
+* Generate:
+
+  * short reply
+  * detailed reply
+  * friendly reply
+
+* Store replies in DB
+
+* Trigger via queue
+
+---
+
+## 🔥 2. Gmail Send API
+
+* Implement sendReply()
+* Include:
+
+  * threadId
+  * proper headers
+* Connect to UI
+
+---
+
+## 🔥 3. Memory Graph
+
+* Track:
+
+  * open
+  * reply
+  * ignore
+* Update sender scores
+* Feed into priority scoring
+
+---
+
+## 🔥 4. Advanced Priority Model
+
+Replace rule-based logic with:
+
+* weighted scoring
+* behavior-based learning
+
+---
+
+## 🔥 5. Model Router
+
+* Route tasks:
+
+  * local GPU (default)
+  * cloud (high complexity)
+
+* Add fallback logic
+
+---
+
+## 🔥 6. GPU Worker Integration
+
+* Ensure local inference runs via queue
+* Batch requests
+* Avoid blocking API
+
+---
+
+## 🔥 7. UI Integration
+
+Add:
+
+* ReplyBox (editable)
+* Multi-reply options
+* Model indicator (local/cloud)
+* “Why this email?” explanation
+
+---
+
+# 🧠 STEP 4: IMPROVE EXISTING SYSTEM
+
+Upgrade:
+
+* Replace keyword rules with semantic understanding
+* Add explainability to all decisions
+* Optimize queue usage
+* Improve performance and caching
+
+---
+
+# ⚡ STEP 5: OUTPUT
+
+Generate:
+
+1. Audit report (what exists vs missing)
+2. Updated backend code
+3. New modules (reply engine, memory, router)
+4. Updated frontend components
+5. Integration points (queue + API)
+
+---
+
+# 🚫 RULES
+
+* Do NOT rebuild everything from scratch
+* Extend existing architecture
+* Keep system modular and scalable
+* Avoid unnecessary API calls
+* Prioritize GPU usage over cloud
+
+---
+
+# 🎯 FINAL GOAL
+
+Transform the system into:
+
+→ AI that reads emails
+→ AI that decides
+→ AI that writes replies
+→ AI that learns from user
+→ AI that improves continuously
+
+Make it feel like a real human assistant managing communication.
+
+Think like a senior engineer completing a production SaaS system.
