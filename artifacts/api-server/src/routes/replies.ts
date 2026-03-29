@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { google } from "googleapis";
 import { db, emailsTable, repliesTable, toneProfilesTable, usersTable } from "@workspace/db";
 import { generateReply, streamReply, type Tone } from "../ai/reply.js";
+import { storeReplyContext } from "../services/outcomeEngine.js";
 
 const router: IRouter = Router();
 
@@ -63,6 +64,7 @@ router.post("/replies/generate", async (req, res) => {
         receivedAt: email.receivedAt,
         priorityScore: email.priorityScore,
         category: email.category,
+        urgency: email.urgency,
       },
       tone,
       {
@@ -259,14 +261,24 @@ router.post("/replies/send", async (req, res) => {
       },
     });
 
-    // Mark as sent in DB
+    const sentAt = new Date();
+
     if (replyId) {
       await db.update(repliesTable).set({
         isSent: "true",
-        sentAt: new Date(),
+        sentAt,
         selectedContent: content,
-        updatedAt: new Date(),
+        updatedAt: sentAt,
       }).where(eq(repliesTable.id, replyId));
+    }
+
+    if (process.env["ENABLE_OUTCOME_ENGINE"] === "true") {
+      storeReplyContext({
+        emailId,
+        threadId: email.threadId,
+        repliedAt: sentAt,
+        receivedAt: email.receivedAt ?? sentAt,
+      }).catch((e) => console.error("[outcome] storeReplyContext error:", e));
     }
 
     res.json({ success: true, messageId: sendResult.data.id, threadId: sendResult.data.threadId });

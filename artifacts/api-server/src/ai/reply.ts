@@ -1,5 +1,6 @@
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { routeTask, callLocalLlm } from "./index.js";
+import { getBestStrategy } from "../services/strategyMemory.js";
 
 // ── Types ─────────────────────────────────────────────────────────
 export type Tone = "professional" | "friendly" | "brief" | "formal";
@@ -32,6 +33,7 @@ export interface ReplyEmailContext {
   receivedAt: Date | null;
   priorityScore: number;
   category: string;
+  urgency?: string;
 }
 
 export interface ToneProfile {
@@ -61,9 +63,24 @@ function cacheReplies(emailId: string, tone: Tone, replies: GeneratedReplies) {
 
 // ── Model selection ───────────────────────────────────────────────
 async function selectBestModel(
-  priorityScore: number
+  priorityScore: number,
+  urgency?: string
 ): Promise<{ tier: "local" | "cloud"; reason: string }> {
-  const routing = await routeTask("reply-generation", priorityScore);
+  const urgencyLevel = urgency === "critical"
+    ? "critical"
+    : urgency === "high"
+    ? "high"
+    : urgency === "medium"
+    ? "medium"
+    : "low";
+
+  const routing = await routeTask("reply-generation", priorityScore, {
+    advanced: {
+      outcome_goal: "high_quality_reply",
+      urgency: urgencyLevel,
+      intent: "reply",
+    },
+  });
   return { tier: routing.tier, reason: routing.reason };
 }
 
@@ -128,7 +145,8 @@ OUTPUT FORMAT (strict JSON):
 function buildStrategistPrompt(
   email: ReplyEmailContext,
   tone: Tone,
-  profile: ToneProfile
+  profile: ToneProfile,
+  strategyHint?: string | null
 ): string {
   const toneNote = {
     professional: "Lean professional and clear.",
@@ -145,9 +163,13 @@ function buildStrategistPrompt(
           .join("\n")}`
       : "";
 
+  const strategyBlock = strategyHint
+    ? `\n\nPast strategy that worked for similar emails: "${strategyHint}" — build on or improve this.`
+    : "";
+
   const bodyPreview = (email.body || email.snippet || "").slice(0, 1200);
 
-  return `Tone preference: ${toneNote}${examplesBlock}
+  return `Tone preference: ${toneNote}${examplesBlock}${strategyBlock}
 
 EMAIL TO REPLY TO:
 From: ${email.from} <${email.fromEmail}>
@@ -173,8 +195,15 @@ export async function generateReply(
     if (cached) return cached;
   }
 
-  const { tier } = await selectBestModel(email.priorityScore);
-  const userPrompt = buildStrategistPrompt(email, tone, profile);
+  const { tier } = await selectBestModel(email.priorityScore, email.urgency);
+
+  const inferredIntent = email.category?.toLowerCase() || "general";
+  const strategyHint =
+    process.env["ENABLE_OUTCOME_ENGINE"] === "true"
+      ? await getBestStrategy(inferredIntent).catch(() => null)
+      : null;
+
+  const userPrompt = buildStrategistPrompt(email, tone, profile, strategyHint);
 
   let rawJson = "";
   let modelUsed = "cloud:gpt-4o-mini";

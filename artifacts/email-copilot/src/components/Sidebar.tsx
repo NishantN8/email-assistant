@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Zap,
+  AlertCircle,
+  Clock,
+  CheckCheck,
 } from "lucide-react";
 import { useGetSyncStatus } from "@workspace/api-client-react";
 import { useEmailActions } from "@/hooks/use-emails";
@@ -41,6 +45,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { icon: Send, label: "Sent", href: "/sent" },
     { icon: Archive, label: "Archive", href: "/archive" },
     { icon: Trash2, label: "Trash", href: "/trash" },
+    { icon: Zap, label: "Action Feed", href: "/action-feed" },
+  ];
+
+  const taskStatusItems = [
+    { icon: AlertCircle, label: "Needs Action", href: "/action-feed?status=needs_action", color: "text-red-400" },
+    { icon: Clock, label: "In Progress", href: "/action-feed?status=in_progress", color: "text-yellow-400" },
+    { icon: CheckCheck, label: "Done", href: "/action-feed?status=done", color: "text-green-400" },
   ];
 
   return (
@@ -170,7 +181,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
 
       {/* Nav */}
-      <nav className="flex-1 px-2 space-y-0.5">
+      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location === item.href;
           return (
@@ -193,6 +204,28 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           );
         })}
+
+        <div className="pt-1 pb-0.5">
+          <p className="px-3 text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Task Status</p>
+          {taskStatusItems.map((item) => {
+            const isActive = location.startsWith("/action-feed") && location.includes(item.href.split("?")[1] ?? "XXXX");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 outline-none",
+                  isActive
+                    ? "bg-secondary text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                )}
+              >
+                <item.icon className={cn("w-4 h-4 shrink-0", item.color)} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       {/* Footer */}

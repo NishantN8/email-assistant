@@ -5,6 +5,7 @@ import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace
 import { CreateDecisionBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { routeTask, callLocalLlm, allQueueStats, getCacheStats } from "../ai/index.js";
+import { createTaskForEmail } from "../services/taskEngine.js";
 
 const router: IRouter = Router();
 
@@ -395,6 +396,10 @@ router.post("/decisions", async (req, res) => {
       })
       .where(eq(emailsTable.id, emailId));
 
+    if (process.env["ENABLE_TASK_SYSTEM"] === "true") {
+      createTaskForEmail(emailId).catch((e) => console.error("[tasks] createTask error:", e));
+    }
+
     res.json({
       id: decisionId,
       emailId,
@@ -511,6 +516,9 @@ export async function batchScoreUnscored(): Promise<number> {
       const now = new Date();
       await db.insert(aiDecisionsTable).values({ id: randomUUID(), emailId: email.id, ...result, createdAt: now, updatedAt: now }).onConflictDoNothing();
       await db.update(emailsTable).set({ category: result.category, priorityScore: result.priorityScore, urgency: result.urgency, updatedAt: now }).where(eq(emailsTable.id, email.id));
+      if (process.env["ENABLE_TASK_SYSTEM"] === "true") {
+        createTaskForEmail(email.id).catch((e) => console.error("[tasks] batch createTask error:", e));
+      }
       scored++;
     } catch (e) {
       console.error("Batch score failed for", email.id, e);

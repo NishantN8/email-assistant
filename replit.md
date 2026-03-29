@@ -46,6 +46,10 @@ artifacts-monorepo/
 - `user_actions` — Behavior log (open, reply, ignore, archive, override)
 - `sender_memory` — Per-sender behavioral statistics for adaptive scoring
 - `sync_state` — Gmail sync state tracking
+- `outcome_signals` — Tracks reply outcomes (response_received, ignored, positive, negative)
+- `strategy_patterns` — Maps intent+strategy → success rate for adaptive learning
+- `tasks` — AI-generated structured tasks from emails (actionType, taskText, priority, status)
+- `model_profiles` — Per-model strengths, weaknesses, VRAM requirements, and quality scores
 
 ## API Endpoints
 

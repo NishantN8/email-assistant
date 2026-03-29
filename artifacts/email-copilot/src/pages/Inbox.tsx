@@ -8,6 +8,7 @@ import { ReplyBox, ReplyModeOptions } from "@/components/ReplyBox";
 import { SmartStatsBar } from "@/components/SmartStatsBar";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useSenderStats } from "@/hooks/use-sender-stats";
+import { useEmailTaskMap } from "@/hooks/use-task";
 import { useKeyboardNav } from "@/hooks/use-keyboard";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -693,11 +694,12 @@ function EmptyState({ hasEmails }: { hasEmails: boolean }) {
 }
 
 // ── Sender bundle (groups 2+ emails from same sender) ──
-function SenderBundle({ sender, items, selectedId, onSelect }: {
+function SenderBundle({ sender, items, selectedId, onSelect, taskMap }: {
   sender: string;
   items: EmailWithDecision[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  taskMap: Map<string, unknown>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const first = items[0];
@@ -707,7 +709,12 @@ function SenderBundle({ sender, items, selectedId, onSelect }: {
   return (
     <div className={cn("border-b border-border/30", hasSelected && "bg-primary/5")}>
       {/* Always show first email as the representative row */}
-      <EmailCardRow data={first} isSelected={selectedId === first.email.id} onSelect={() => onSelect(first.email.id)} />
+      <EmailCardRow
+        data={first}
+        isSelected={selectedId === first.email.id}
+        onSelect={() => onSelect(first.email.id)}
+        hasTask={taskMap.has(first.email.id)}
+      />
       {/* Bundle expander */}
       <button
         onClick={() => setExpanded((v) => !v)}
@@ -732,6 +739,7 @@ function SenderBundle({ sender, items, selectedId, onSelect }: {
                 data={item}
                 isSelected={selectedId === item.email.id}
                 onSelect={() => onSelect(item.email.id)}
+                hasTask={taskMap.has(item.email.id)}
               />
             ))}
           </motion.div>
@@ -785,6 +793,7 @@ export default function Inbox() {
   const { data: response, isLoading } = useGetEmails();
   const { logAction } = useEmailActions();
   const queryClient = useQueryClient();
+  const taskMap = useEmailTaskMap();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -1073,6 +1082,7 @@ export default function Inbox() {
                                   items={items}
                                   selectedId={selectedId}
                                   onSelect={setSelectedId}
+                                  taskMap={taskMap}
                                 />
                               ) : (
                                 <EmailCardRow
@@ -1080,6 +1090,7 @@ export default function Inbox() {
                                   data={items[0]}
                                   isSelected={selectedId === items[0].email.id}
                                   onSelect={() => setSelectedId(items[0].email.id)}
+                                  hasTask={taskMap.has(items[0].email.id)}
                                 />
                               )
                             )}
@@ -1322,18 +1333,18 @@ function EmailCardRow({
   data,
   isSelected,
   onSelect,
+  hasTask = false,
 }: {
   data: EmailWithDecision;
   isSelected: boolean;
   onSelect: () => void;
+  hasTask?: boolean;
 }) {
   const { email, decision } = data;
   const { logAction } = useEmailActions();
   const queryClient = useQueryClient();
   const [whyExpanded, setWhyExpanded] = useState(false);
-  // Feature 7: inline reply state
   const [replyOpen, setReplyOpen] = useState(false);
-  // Feature 3: star/important state
   const [starred, setStarred] = useState(false);
 
   const handleQuickAction = async (e: React.MouseEvent, action: "reply" | "ignore" | "archive") => {
@@ -1439,9 +1450,14 @@ function EmailCardRow({
               <span className="text-[10px] text-muted-foreground shrink-0">{formatTimeAgo(email.receivedAt)}</span>
             </div>
 
-            <div className={cn("text-sm truncate mb-1", !email.isRead ? "text-foreground font-medium" : "text-muted-foreground", isHigh && "font-bold")}>
-              {isHigh && <Zap className="w-3 h-3 inline text-red-400 mr-1 -mt-0.5" />}
-              {email.subject}
+            <div className={cn("text-sm truncate mb-1 flex items-center gap-1", !email.isRead ? "text-foreground font-medium" : "text-muted-foreground", isHigh && "font-bold")}>
+              {isHigh && <Zap className="w-3 h-3 inline text-red-400 mr-1 -mt-0.5 shrink-0" />}
+              <span className="truncate">{email.subject}</span>
+              {hasTask && (
+                <span className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold uppercase border text-yellow-400 border-yellow-400/30 bg-yellow-400/10">
+                  <Zap className="w-2 h-2" />Task
+                </span>
+              )}
             </div>
 
             <div className="text-xs text-muted-foreground truncate">{email.snippet}</div>

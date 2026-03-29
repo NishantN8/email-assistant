@@ -12,6 +12,7 @@ import Sent from "@/pages/Sent";
 import Archive from "@/pages/Archive";
 import Trash from "@/pages/Trash";
 import Settings from "@/pages/Settings";
+import ActionFeed from "@/pages/ActionFeed";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/archive" component={Archive} />
       <Route path="/trash" component={Trash} />
       <Route path="/settings" component={Settings} />
+      <Route path="/action-feed" component={ActionFeed} />
       <Route component={NotFound} />
     </Switch>
   );

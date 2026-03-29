@@ -5,3 +5,7 @@ export * from "./sender_memory";
 export * from "./sync_state";
 export * from "./users";
 export * from "./replies";
+export * from "./outcome_signals";
+export * from "./strategy_patterns";
+export * from "./tasks";
+export * from "./model_profiles";

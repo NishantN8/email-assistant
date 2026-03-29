@@ -5,6 +5,7 @@ import { google } from "googleapis";
 import { db, syncStateTable, emailsTable, usersTable } from "@workspace/db";
 import { randomUUID } from "crypto";
 import { getAuthClientForUser } from "./auth";
+import { checkThreadsForResponses } from "../services/outcomeEngine.js";
 
 const router: IRouter = Router();
 const SYNC_STATE_ID = "main";
@@ -372,6 +373,9 @@ router.post("/sync/bulk", async (req, res) => {
 
       if (stored > 0) {
         batchScoreUnscored().catch((e) => console.error("Auto-score error:", e));
+        if (process.env["ENABLE_OUTCOME_ENGINE"] === "true") {
+          checkThreadsForResponses("system").catch((e) => console.error("[outcome] sync check error:", e));
+        }
       }
 
       console.log(`[bulk-sync] Done — fetched ${messages.length}, stored ${stored} new`);
@@ -448,9 +452,11 @@ router.post("/sync/trigger", async (req, res) => {
           updatedAt: completedAt,
         }).where(eq(syncStateTable.id, SYNC_STATE_ID));
 
-        // Auto-score any unscored emails in the background
         if (synced > 0) {
           batchScoreUnscored().catch((e) => console.error("Auto-score error:", e));
+          if (process.env["ENABLE_OUTCOME_ENGINE"] === "true") {
+            checkThreadsForResponses("system").catch((e) => console.error("[outcome] sync check error:", e));
+          }
         }
       } catch (err) {
         console.error("Sync error:", err);

@@ -2,8 +2,9 @@ import { routeTask, type TaskType } from "./router.js";
 import { callLocalLlm } from "./local-llm.js";
 import { localAiQueue, cloudAiQueue } from "./queue.js";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { db, outcomeSignalsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 
-// ── Output format (matches spec) ─────────────────
 export interface AiOutput {
   category: string;
   priority_score: number;
@@ -13,9 +14,8 @@ export interface AiOutput {
   model_used: "local" | "cloud";
 }
 
-// ── In-memory response cache ──────────────────────
 const responseCache = new Map<string, { result: AiOutput; ts: number }>();
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL = 60 * 60 * 1000;
 
 function cacheKey(emailId: string, task: TaskType): string {
   return `${task}:${emailId}`;
@@ -29,7 +29,6 @@ function fromCache(key: string): AiOutput | null {
 
 function toCache(key: string, result: AiOutput) {
   responseCache.set(key, { result, ts: Date.now() });
-  // Evict oldest if too large
   if (responseCache.size > 1000) {
     const first = responseCache.keys().next().value;
     if (first) responseCache.delete(first);
@@ -40,7 +39,6 @@ export function getCacheStats() {
   return { size: responseCache.size, maxSize: 1000 };
 }
 
-// ── Email payload ─────────────────────────────────
 export interface EmailPayload {
   id: string;
   subject: string;
@@ -52,7 +50,6 @@ export interface EmailPayload {
   receivedAt: Date | null;
 }
 
-// ── Prompt builder ────────────────────────────────
 function buildClassifyPrompt(email: EmailPayload): string {
   return `You are an adaptive intelligence engine — not a classifier. Every piece of communication that arrives is an intent signal: a request, a trigger, a decision waiting to happen, an opportunity to act or ignore.
 
@@ -104,7 +101,6 @@ Return ONLY valid JSON:
 }`;
 }
 
-// ── Cloud LLM call ────────────────────────────────
 async function callCloud(prompt: string): Promise<string> {
   const resp = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -116,7 +112,6 @@ async function callCloud(prompt: string): Promise<string> {
   return resp.choices[0]?.message?.content || "{}";
 }
 
-// ── JSON parser with fallback ─────────────────────
 function parseAiJson(raw: string, modelUsed: "local" | "cloud"): AiOutput {
   try {
     const cleaned = raw.replace(/```json|```/g, "").trim();
@@ -141,7 +136,37 @@ function parseAiJson(raw: string, modelUsed: "local" | "cloud"): AiOutput {
   }
 }
 
-// ── Core runAI function ───────────────────────────
+async function getStrategySuccessRate(strategy: string): Promise<number> {
+  if (!strategy || process.env["ENABLE_OUTCOME_ENGINE"] !== "true") return 1.0;
+  try {
+    const rows = await db
+      .select({
+        outcomeType: outcomeSignalsTable.outcomeType,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(outcomeSignalsTable)
+      .where(eq(outcomeSignalsTable.strategy, strategy))
+      .groupBy(outcomeSignalsTable.outcomeType);
+
+    if (rows.length === 0) return 1.0;
+
+    const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const positive = rows
+      .filter((r) => r.outcomeType === "response_received" || r.outcomeType === "positive")
+      .reduce((sum, r) => sum + r.count, 0);
+    const negative = rows
+      .filter((r) => r.outcomeType === "ignored" || r.outcomeType === "negative" || r.outcomeType === "escalated")
+      .reduce((sum, r) => sum + r.count, 0);
+
+    const successRate = positive / total;
+    const failureRate = negative / total;
+
+    return Math.max(0.6, Math.min(1.4, 1.0 + successRate * 0.4 - failureRate * 0.3));
+  } catch {
+    return 1.0;
+  }
+}
+
 export async function runAI(
   task: TaskType,
   email: EmailPayload,
@@ -162,16 +187,25 @@ export async function runAI(
             : buildClassifyPrompt(email);
 
         const response = await callLocalLlm(prompt, { timeoutMs: 12_000 });
-        return parseAiJson(response.text, "local");
+        const result = parseAiJson(response.text, "local");
+        const strategyRate = await getStrategySuccessRate(result.action);
+        result.priority_score = Math.round(
+          Math.min(100, result.priority_score * strategyRate)
+        );
+        return result;
       } catch (err) {
         if (!routing.fallbackAllowed) throw err;
-        // Fall through to cloud
         const prompt =
           task === "deep-reasoning"
             ? buildDeepReasonPrompt(email)
             : buildClassifyPrompt(email);
         const raw = await callCloud(prompt);
-        return parseAiJson(raw, "cloud");
+        const result = parseAiJson(raw, "cloud");
+        const strategyRate = await getStrategySuccessRate(result.action);
+        result.priority_score = Math.round(
+          Math.min(100, result.priority_score * strategyRate)
+        );
+        return result;
       }
     } else {
       const prompt =
@@ -179,16 +213,19 @@ export async function runAI(
           ? buildDeepReasonPrompt(email)
           : buildClassifyPrompt(email);
       const raw = await callCloud(prompt);
-      return parseAiJson(raw, "cloud");
+      const result = parseAiJson(raw, "cloud");
+      const strategyRate = await getStrategySuccessRate(result.action);
+      result.priority_score = Math.round(
+        Math.min(100, result.priority_score * strategyRate)
+      );
+      return result;
     }
   };
 
-  // Route to appropriate queue
   const queue = routing.tier === "local" ? localAiQueue : cloudAiQueue;
   const priority = priorityScore;
 
   return new Promise<AiOutput>((resolve, reject) => {
-    // Register handler only once
     if ((queue as any)._handlerRegistered !== true) {
       queue.process(async (job) => {
         return (job.data as { execute: () => Promise<AiOutput> }).execute();
@@ -211,7 +248,6 @@ export async function runAI(
           }
         }, 50);
 
-        // Timeout after 30s
         setTimeout(() => {
           clearInterval(checkDone);
           reject(new Error("job_timeout"));
@@ -221,7 +257,6 @@ export async function runAI(
   });
 }
 
-// ── Batch runAI for multiple emails ───────────────
 export async function runAIBatch(
   task: TaskType,
   emails: EmailPayload[],

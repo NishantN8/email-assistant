@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { Check, Archive, MessageSquare, Clock, ArrowRight } from "lucide-react";
+import { Check, Archive, MessageSquare, Clock, ArrowRight, Zap } from "lucide-react";
 import { type EmailWithDecision } from "@workspace/api-client-react";
 import { cn, formatTimeAgo, getScoreColor, getInitials } from "@/lib/utils";
 import { useEmailActions } from "@/hooks/use-emails";
 
-export function EmailCard({ data }: { data: EmailWithDecision }) {
+export function EmailCard({ data, hasTask }: { data: EmailWithDecision; hasTask?: boolean }) {
   const { email, decision } = data;
   const { logAction } = useEmailActions();
 
@@ -56,6 +56,15 @@ export function EmailCard({ data }: { data: EmailWithDecision }) {
             <h3 className={cn("text-base font-semibold truncate", !email.isRead ? "text-foreground" : "text-muted-foreground")}>
               {email.subject}
             </h3>
+            {hasTask && (
+              <span
+                title="Task pending"
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-bold uppercase tracking-wider shrink-0"
+              >
+                <Zap className="w-2.5 h-2.5" />
+                Task
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
             {email.snippet}

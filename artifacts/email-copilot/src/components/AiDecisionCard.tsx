@@ -2,11 +2,12 @@ import { type AiDecision } from "@workspace/api-client-react";
 import {
   Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2,
   Cpu, Cloud, User, TrendingUp, TrendingDown, Minus,
-  MessageSquare, Eye, VolumeX, Brain,
+  MessageSquare, Eye, VolumeX, Brain, Activity,
 } from "lucide-react";
 import { cn, getScoreColor } from "@/lib/utils";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useSenderStats } from "@/hooks/use-sender-stats";
+import { useOutcome } from "@/hooks/use-outcome";
 import { motion } from "framer-motion";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -201,6 +202,46 @@ function SenderTrustPanel({ emailId }: { emailId: string }) {
   );
 }
 
+const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
+  response_received: { label: "Response received", color: "text-green-400" },
+  positive: { label: "Positive outcome", color: "text-green-400" },
+  negative: { label: "Negative / rejected", color: "text-red-400" },
+  ignored: { label: "Thread ignored", color: "text-muted-foreground" },
+  unknown: { label: "Unknown", color: "text-muted-foreground" },
+};
+
+function OutcomeInsights({ emailId }: { emailId: string }) {
+  const { data: outcome, isLoading } = useOutcome(emailId);
+
+  return (
+    <div className="pt-3 border-t border-border/40 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Activity className="w-3 h-3 text-muted-foreground" />
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Outcome Insights</p>
+      </div>
+
+      {isLoading ? (
+        <div className="h-6 bg-secondary animate-pulse rounded" />
+      ) : !outcome ? (
+        <p className="text-[11px] text-muted-foreground italic">No outcome recorded yet for this thread.</p>
+      ) : (
+        <div className="space-y-1">
+          <p className={cn("text-[11px] font-semibold", OUTCOME_LABELS[outcome.outcomeType]?.color ?? "text-muted-foreground")}>
+            {OUTCOME_LABELS[outcome.outcomeType]?.label ?? outcome.outcomeType}
+          </p>
+          {outcome.responseTimeMinutes != null && (
+            <p className="text-[10px] text-muted-foreground">
+              Response time: {outcome.responseTimeMinutes < 60
+                ? `${outcome.responseTimeMinutes}m`
+                : `${Math.round(outcome.responseTimeMinutes / 60)}h`}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AiDecisionCard({
   decision,
   emailId,
@@ -273,11 +314,16 @@ export function AiDecisionCard({
         </div>
 
         {/* ── 4. SENDER INTELLIGENCE ── */}
-        <div className="flex-1 p-4">
+        <div className="p-4 border-b border-border/40">
           <SenderTrustPanel emailId={emailId} />
         </div>
 
-        {/* ── 5. OVERRIDE (minimal) ── */}
+        {/* ── 5. OUTCOME INSIGHTS ── */}
+        <div className="flex-1 p-4">
+          <OutcomeInsights emailId={emailId} />
+        </div>
+
+        {/* ── 6. OVERRIDE (minimal) ── */}
         <div className="p-4 border-t border-border/40 flex gap-2">
           <button
             onClick={() => handleOverride("reply")}
@@ -367,6 +413,11 @@ export function AiDecisionCard({
             <div>
               <div className="text-sm font-medium text-muted-foreground mb-1">Sender Intelligence</div>
               <SenderTrustPanel emailId={emailId} />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium text-muted-foreground mb-1">Outcome Insights</div>
+              <OutcomeInsights emailId={emailId} />
             </div>
 
             <div>
