@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -30,3 +30,6 @@ timeoutMs = 20000
 [userenv.shared]
 GOOGLE_CLIENT_ID = "315081352824-si7lehcb4tqic9m96c9mavsmuo479gds.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "https://5f65a511-e38b-4d5e-97da-62a89a74cdf4-00-3svcbtnyuw36y.picard.replit.dev/api/auth/google/callback"
+
+[nix]
+channel = "stable-25_05"

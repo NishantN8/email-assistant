@@ -74,7 +74,7 @@ function parseEmailAddress(raw: string): { name: string; email: string } {
   return { name: raw.trim(), email: raw.trim() };
 }
 
-// ── Core Gmail fetch ──────────────────────────────
+// ── Core Gmail fetch (single page) ───────────────
 async function fetchGmailMessages(userId: string, maxMessages = 50) {
   const auth = await getAuthClientForUser(userId);
   if (!auth) return null;
@@ -91,12 +91,60 @@ async function fetchGmailMessages(userId: string, maxMessages = 50) {
   const messageIds = listRes.data.messages ?? [];
   if (messageIds.length === 0) return [];
 
-  // Batch fetch message details
+  return fetchMessageDetails(gmail, messageIds.slice(0, maxMessages));
+}
+
+// ── Paginated bulk fetch (all inbox pages) ────────
+async function fetchAllGmailMessages(userId: string, maxTotal = 500) {
+  const auth = await getAuthClientForUser(userId);
+  if (!auth) return null;
+
+  const gmail = google.gmail({ version: "v1", auth: auth.client });
+
+  const allMessageIds: { id: string }[] = [];
+  let pageToken: string | undefined;
+
+  // Page through Gmail list API
+  while (allMessageIds.length < maxTotal) {
+    const listRes = await gmail.users.messages.list({
+      userId: "me",
+      maxResults: 50,
+      labelIds: ["INBOX"],
+      pageToken,
+    });
+
+    const ids = (listRes.data.messages ?? []).filter((m) => m.id) as { id: string }[];
+    allMessageIds.push(...ids);
+
+    pageToken = listRes.data.nextPageToken ?? undefined;
+    if (!pageToken || allMessageIds.length >= maxTotal) break;
+  }
+
+  if (allMessageIds.length === 0) return [];
+
+  // Fetch details in parallel batches of 20 to avoid rate limits
+  const all = allMessageIds.slice(0, maxTotal);
+  const parsed = [];
+  const BATCH = 20;
+
+  for (let i = 0; i < all.length; i += BATCH) {
+    const batch = all.slice(i, i + BATCH);
+    const results = await fetchMessageDetails(gmail, batch);
+    parsed.push(...results);
+    // Small pause between batches to be respectful of rate limits
+    if (i + BATCH < all.length) await new Promise((r) => setTimeout(r, 100));
+  }
+
+  return parsed;
+}
+
+// ── Parse message details ─────────────────────────
+async function fetchMessageDetails(gmail: any, messageIds: { id: string }[]) {
   const messages = await Promise.allSettled(
-    messageIds.slice(0, maxMessages).map((m) =>
+    messageIds.map((m) =>
       gmail.users.messages.get({
         userId: "me",
-        id: m.id!,
+        id: m.id,
         format: "full",
       })
     )
@@ -106,7 +154,7 @@ async function fetchGmailMessages(userId: string, maxMessages = 50) {
 
   for (const result of messages) {
     if (result.status !== "fulfilled") continue;
-    const msg = result.value.data;
+    const msg = (result as any).value.data;
     if (!msg.payload) continue;
 
     const headers = msg.payload.headers ?? [];
@@ -120,13 +168,12 @@ async function fetchGmailMessages(userId: string, maxMessages = 50) {
 
     const labels = msg.labelIds ?? [];
     const snippet = msg.snippet ?? "";
-
-    // Create a 2-line snippet from body
     const bodyText = text || snippet;
     const previewSnippet = bodyText.slice(0, 200).replace(/\s+/g, " ").trim();
 
     parsed.push({
       gmailId: msg.id!,
+      threadId: msg.threadId || null,
       subject: getHeader(headers, "subject") || "(no subject)",
       from: fromName || fromEmail,
       fromEmail,
@@ -282,6 +329,65 @@ async function getGmailProfile(userId: string) {
 }
 
 // ── Routes ────────────────────────────────────────
+
+// One-time bulk pull — paginate through entire inbox and store everything
+router.post("/sync/bulk", async (req, res) => {
+  const sessionUserId = (req as any).session?.userId as string | undefined;
+  if (!sessionUserId) {
+    res.status(401).json({ error: "not_authenticated" });
+    return;
+  }
+
+  const { maxTotal = 500 } = req.body as { maxTotal?: number };
+
+  // Mark as syncing immediately
+  const now = new Date();
+  await db.update(syncStateTable)
+    .set({ status: "syncing", message: `Bulk fetching up to ${maxTotal} emails…`, updatedAt: now })
+    .where(eq(syncStateTable.id, SYNC_STATE_ID));
+
+  // Run in background so we can respond quickly
+  setImmediate(async () => {
+    try {
+      const messages = await fetchAllGmailMessages(sessionUserId, maxTotal);
+      if (!messages) throw new Error("Gmail auth failed");
+
+      const stored = await storeEmails(messages as any[]);
+
+      const profile = await getGmailProfile(sessionUserId);
+      if (profile?.historyId) {
+        await db.update(usersTable)
+          .set({ historyId: profile.historyId, updatedAt: new Date() })
+          .where(eq(usersTable.id, sessionUserId));
+      }
+
+      const completedAt = new Date();
+      await db.update(syncStateTable).set({
+        status: "idle",
+        lastSyncAt: completedAt,
+        emailsSynced: stored,
+        message: `Bulk sync complete — ${stored} new emails stored (${messages.length} total fetched)`,
+        updatedAt: completedAt,
+      }).where(eq(syncStateTable.id, SYNC_STATE_ID));
+
+      if (stored > 0) {
+        batchScoreUnscored().catch((e) => console.error("Auto-score error:", e));
+      }
+
+      console.log(`[bulk-sync] Done — fetched ${messages.length}, stored ${stored} new`);
+    } catch (err) {
+      console.error("[bulk-sync] Error:", err);
+      await db.update(syncStateTable).set({
+        status: "error",
+        message: `Bulk sync failed: ${(err as Error).message}`,
+        updatedAt: new Date(),
+      }).where(eq(syncStateTable.id, SYNC_STATE_ID));
+    }
+  });
+
+  res.json({ status: "started", maxTotal, message: `Bulk sync started — fetching up to ${maxTotal} emails` });
+});
+
 router.post("/sync/trigger", async (req, res) => {
   try {
     const sessionUserId = (req as any).session?.userId as string | undefined;
