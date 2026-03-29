@@ -1,0 +1,212 @@
+You are a senior AI infrastructure engineer, GPU optimization expert, and backend architect.
+
+Your task is to design and implement a production-grade GPU-accelerated AI pipeline for an email copilot system using:
+
+* NVIDIA GPU (CUDA-enabled)
+* Local LLM (Ollama or vLLM)
+* Node.js backend
+* BullMQ queue system
+* Hybrid AI (local + cloud fallback)
+
+---
+
+# 🎯 CORE OBJECTIVE
+
+Build a high-performance AI pipeline where:
+
+* Local GPU handles most AI tasks (fast + low cost)
+* Cloud LLM is used only for complex reasoning
+* System dynamically chooses best model
+* All AI tasks are processed asynchronously via queue
+
+---
+
+# ⚙️ SYSTEM ARCHITECTURE
+
+Design pipeline:
+
+GPU (NVIDIA)
+↓
+Local LLM Server (Ollama / vLLM)
+↓
+Local AI Worker (BullMQ)
+↓
+Decision Engine
+↓
+(Optional)
+Cloud LLM (OpenAI / Gemini)
+↓
+Database + Cache
+
+---
+
+# 🧠 GPU SETUP REQUIREMENTS
+
+* Detect NVIDIA GPU using `nvidia-smi`
+* Ensure CUDA is enabled
+* Run local LLM with GPU acceleration
+* Support batching for multiple email inference
+
+---
+
+# ⚡ LOCAL LLM SETUP
+
+Use Ollama or vLLM:
+
+* Install and run model locally
+* Expose HTTP API (localhost:11434 or vLLM server)
+* Model examples:
+
+  * llama3
+  * mistral
+  * mixtral
+
+Local model must handle:
+
+* Email classification
+* Priority scoring
+* Lightweight summarization
+* Embedding generation
+
+---
+
+# 🧠 NODE.JS INTEGRATION
+
+Implement:
+
+## Local Model Client
+
+* Function to call local LLM via HTTP
+* Support prompt-based inference
+* Handle timeout + retries
+
+---
+
+# ⚡ QUEUE SYSTEM (BullMQ)
+
+Create queues:
+
+* local-ai-queue
+* cloud-ai-queue
+
+Jobs:
+
+* classify-email
+* summarize-email
+* generate-embedding
+* deep-reasoning
+
+---
+
+# 🧠 GPU WORKER
+
+Create a worker that:
+
+* Pulls jobs from local-ai-queue
+* Sends requests to local LLM
+* Returns structured output
+* Handles batching where possible
+
+---
+
+# ⚡ MODEL ROUTER (CRITICAL)
+
+Implement intelligent routing:
+
+* classification → local
+* summarization → local (low priority)
+* reasoning → cloud (high priority)
+* reply generation → cloud (very high priority)
+
+Routing must depend on:
+
+* task type
+* email priority score
+* system load
+* GPU availability
+
+---
+
+# 🧠 HYBRID EXECUTION ENGINE
+
+Implement function:
+
+runAI(task, email, priority)
+
+* Select model using router
+* Execute locally if possible
+* Fallback to cloud if:
+
+  * GPU unavailable
+  * timeout occurs
+  * task requires deep reasoning
+
+---
+
+# ⚡ PERFORMANCE OPTIMIZATION
+
+* Batch multiple emails into single inference call
+* Cache AI responses in Redis
+* Avoid duplicate processing
+* Use async non-blocking workers
+
+---
+
+# 🧠 CLOUD FALLBACK
+
+Integrate:
+
+* OpenAI (GPT-4o-mini or similar)
+* Gemini (optional)
+
+Use only when necessary
+
+---
+
+# ⚡ ERROR HANDLING
+
+* Retry failed jobs with backoff
+* Fallback to cloud if local fails
+* Log GPU usage and failures
+
+---
+
+# 🧠 OUTPUT FORMAT
+
+All AI responses must return structured JSON:
+
+{
+"category": "...",
+"priority_score": 0-100,
+"reason": "...",
+"action": "...",
+"confidence": 0-1,
+"model_used": "local | cloud"
+}
+
+---
+
+# 🚫 CONSTRAINTS
+
+* NEVER run all tasks on cloud
+* ALWAYS prioritize GPU usage
+* NEVER block API while waiting for AI
+* ALWAYS use queue-based processing
+
+---
+
+# 🎯 FINAL GOAL
+
+Build a system that:
+
+* Uses NVIDIA GPU efficiently
+* Minimizes API cost
+* Processes emails in real-time
+* Scales to production workloads
+* Feels instant to the user
+
+This should feel like:
+
+→ Local-first AI + Cloud intelligence combined
+
+You are building a hybrid AI system used by top-tier products like Cursor and Perplexity.

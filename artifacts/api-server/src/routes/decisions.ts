@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace/db";
 import { CreateDecisionBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { routeTask, callLocalLlm, allQueueStats, getCacheStats } from "../ai/index.js";
 
 const router: IRouter = Router();
 
@@ -95,7 +96,7 @@ function weightedPriorityScore(params: {
 }
 
 // ─────────────────────────────────────────────
-// STAGE 3: Deep reasoning (LLM — high priority only)
+// STAGE 3: Deep reasoning — routes via AI engine
 // ─────────────────────────────────────────────
 async function deepReason(email: {
   subject: string;
@@ -146,18 +147,34 @@ Labels: ${email.labels.join(", ")}
 
 ${email.body || email.snippet}`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 600,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-    });
+  // Ask the router whether to use local LLM or cloud
+  const routing = await routeTask("deep-reasoning", email.baseScore);
 
-    const text = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(text);
+  try {
+    let text = "{}";
+    let modelUsed = "cloud";
+
+    if (routing.tier === "local") {
+      const fullPrompt = `${systemPrompt}\n\n${userMessage}`;
+      const localResp = await callLocalLlm(fullPrompt, { timeoutMs: 15_000 });
+      text = localResp.text;
+      modelUsed = `local:${localResp.model}`;
+    } else {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 600,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      });
+      text = response.choices[0]?.message?.content ?? "{}";
+    }
+
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
 
     return {
       category: parsed.category || email.baseCategory,
@@ -168,9 +185,40 @@ ${email.body || email.snippet}`;
       reason: parsed.reason || "AI analysis complete",
       summary: parsed.summary || "",
       keyPoints: Array.isArray(parsed.key_points) ? parsed.key_points : [],
-      modelSource: "cloud",
+      modelSource: modelUsed,
     };
   } catch {
+    // If local LLM failed and fallback is allowed, retry with cloud
+    if (routing.tier === "local" && routing.fallbackAllowed) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_tokens: 600,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        });
+        const text = response.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+        return {
+          category: parsed.category || email.baseCategory,
+          priorityScore: Math.min(100, Math.max(0, parsed.priority_score ?? email.baseScore)),
+          urgency: parsed.urgency || "medium",
+          recommendedAction: parsed.recommended_action || "read_later",
+          confidence: Math.min(1, Math.max(0, parsed.confidence ?? 0.7)),
+          reason: parsed.reason || "AI analysis complete (cloud fallback)",
+          summary: parsed.summary || "",
+          keyPoints: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+          modelSource: "cloud:fallback",
+        };
+      } catch {
+        /* fall through */
+      }
+    }
+
     return {
       category: email.baseCategory,
       priorityScore: email.baseScore,
@@ -180,7 +228,7 @@ ${email.body || email.snippet}`;
       reason: "Rule-based classification applied",
       summary: email.snippet,
       keyPoints: [],
-      modelSource: "local",
+      modelSource: "local:rules",
     };
   }
 }

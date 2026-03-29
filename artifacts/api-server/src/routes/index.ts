@@ -5,6 +5,7 @@ import decisionsRouter from "./decisions";
 import actionsRouter from "./actions";
 import syncRouter from "./sync";
 import authRouter from "./auth";
+import aiStatusRouter from "./ai-status";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(emailsRouter);
 router.use(decisionsRouter);
 router.use(actionsRouter);
 router.use(syncRouter);
+router.use(aiStatusRouter);
 
 export default router;
