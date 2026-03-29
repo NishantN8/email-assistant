@@ -2,12 +2,12 @@ import { useGetInboxSummary } from "@workspace/api-client-react";
 import { Zap, AlertCircle, CreditCard, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 
-export function ActionStrip() {
+export function ActionStrip({ compact = false }: { compact?: boolean }) {
   const { data: summary, isLoading } = useGetInboxSummary();
 
   if (isLoading || !summary) {
     return (
-      <div className="w-full h-16 rounded-2xl bg-secondary/50 animate-pulse border border-border/50 mb-8" />
+      <div className={`w-full ${compact ? "h-10" : "h-16"} rounded-xl bg-secondary/50 animate-pulse border border-border/50 ${compact ? "mb-0" : "mb-8"}`} />
     );
   }
 
@@ -45,6 +45,27 @@ export function ActionStrip() {
       bg: "bg-secondary/50 border-border/50",
     }
   ];
+
+  if (compact) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center gap-2 px-4 py-2 border-b border-border/40 bg-background/60 shrink-0 overflow-x-auto"
+      >
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div key={item.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${item.bg} shrink-0`}>
+              <Icon className={`w-3 h-3 ${item.color}`} />
+              <span className={`text-xs font-bold font-mono ${item.color}`}>{item.count}</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">{item.label}</span>
+            </div>
+          );
+        })}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 
