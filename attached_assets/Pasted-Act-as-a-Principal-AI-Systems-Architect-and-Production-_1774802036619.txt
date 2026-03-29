@@ -1,0 +1,112 @@
+Act as a Principal AI Systems Architect and Production Reliability Engineer.
+
+You are working on an existing AI Email Copilot system with a hybrid LLM architecture (local vLLM + cloud GPT-4o-mini), BullMQ queue, Redis, PostgreSQL (Drizzle), and a 3-stage AI pipeline.
+
+CRITICAL INSTRUCTIONS (NON-NEGOTIABLE):
+- DO NOT remove or downgrade any existing feature
+- DO NOT simplify the system
+- DO NOT replace working components unless absolutely necessary
+- ONLY enhance, optimize, or extend
+- Maintain backward compatibility with current APIs and flows
+- Preserve all existing behaviors unless explicitly improving them
+
+-----------------------------------
+
+STEP 1: DEEP SYSTEM AUDIT (MANDATORY FIRST STEP)
+
+Before suggesting anything:
+- Analyze the current architecture, pipeline, routing logic, queue system, GPU usage, and database design
+- Identify:
+  - Bottlenecks (latency, throughput, GPU, queue)
+  - Missing production-grade components
+  - Failure points (crashes, overload, race conditions)
+  - Inefficiencies (redundant LLM calls, no caching, etc.)
+  - Scalability limitations
+  - Observability gaps
+
+Output:
+- “Current System Strengths”
+- “Critical Gaps”
+- “Hidden Risks Under Load”
+- “What will break at scale”
+
+-----------------------------------
+
+STEP 2: SAFE UPGRADE STRATEGY
+
+Design improvements with STRICT constraints:
+- No breaking changes
+- No feature removal
+- No architectural downgrade
+- All upgrades must be additive or internally replaceable without affecting API
+
+For each improvement:
+- Explain WHY it is needed
+- Show WHERE it fits in current system
+- Show HOW it integrates safely
+
+-----------------------------------
+
+STEP 3: TARGETED UPGRADES (PRODUCTION HARDENING)
+
+Focus on:
+
+1. Routing & Decision Engine
+   - Smarter circuit breaker (latency-aware, not just queue depth)
+   - Adaptive routing (load-aware + priority-aware)
+   - Speculative execution (if beneficial)
+
+2. Queue & Concurrency
+   - BullMQ optimization (priorities, batching, retries, DLQ)
+   - Backpressure handling
+
+3. GPU / vLLM Optimization
+   - CUDA utilization improvements
+   - KV cache efficiency
+   - Prefix caching usage
+
+4. Performance Optimization
+   - Caching (Redis layer for repeated patterns)
+   - Avoid redundant LLM calls
+   - Fast-path vs slow-path execution
+
+5. Memory System
+   - Improve sender memory graph (vector + recency hybrid)
+   - Efficient retrieval (top-K + relevance)
+
+6. Reliability
+   - Failover strategy (instant, no delay)
+   - Circuit breaker refinement
+   - Graceful degradation
+
+7. Observability
+   - Metrics (p50, p95 latency, fallback rate, GPU load)
+   - Logging strategy
+   - Alerting triggers
+
+-----------------------------------
+
+STEP 4: FINAL OUTPUT (VERY IMPORTANT)
+
+Provide:
+
+1. Final Improved Architecture (clean + structured)
+2. Minimal Code Changes (only where necessary)
+3. New Components Added (clearly marked)
+4. What remains unchanged (explicitly confirm)
+5. Performance impact (expected improvements)
+
+-----------------------------------
+
+CONSTRAINTS:
+- Must maintain <300ms latency target
+- Must be production-ready
+- Must scale under burst load (50–100 emails at once)
+- Must minimize cloud cost
+- Must fully utilize GPU (RTX 3080 with CUDA)
+
+-----------------------------------
+
+GOAL:
+Upgrade the system from “strong prototype” → “elite production infrastructure”
+WITHOUT breaking anything that currently works.
