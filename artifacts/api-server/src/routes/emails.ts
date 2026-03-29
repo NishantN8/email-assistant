@@ -287,6 +287,40 @@ router.get("/emails/:id", async (req, res) => {
   }
 });
 
+// ── POST /api/emails/:id/archive ─────────────
+router.post("/emails/:id/archive", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const emailRows = await db
+      .select()
+      .from(emailsTable)
+      .where(eq(emailsTable.id, id))
+      .limit(1);
+
+    if (emailRows.length === 0) {
+      res.status(404).json({ error: "not_found", message: "Email not found" });
+      return;
+    }
+
+    const email = emailRows[0];
+    const currentLabels = (email.labels as string[]) || [];
+    const updatedLabels = currentLabels
+      .filter((l) => l !== "INBOX")
+      .concat("ARCHIVE");
+
+    await db
+      .update(emailsTable)
+      .set({ labels: updatedLabels })
+      .where(eq(emailsTable.id, id));
+
+    res.json({ ok: true, labels: updatedLabels });
+  } catch (err) {
+    req.log.error({ err }, "Failed to archive email");
+    res.status(500).json({ error: "internal_error", message: "Failed to archive email" });
+  }
+});
+
 // ── GET /api/emails/:id/sender ────────────────
 // Returns sender memory stats for the email's from-address
 router.get("/emails/:id/sender", async (req, res) => {

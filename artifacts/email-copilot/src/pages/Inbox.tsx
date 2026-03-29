@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useGetEmails, useGetEmail } from "@workspace/api-client-react";
 import { type EmailWithDecision } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ActionStrip } from "@/components/ActionStrip";
 import { Sidebar } from "@/components/Sidebar";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
@@ -13,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, ArrowLeft, Reply, Archive, Trash2,
   MoreHorizontal, Forward, Keyboard, X,
-  ChevronDown, ChevronRight, ChevronUp, Cpu, Cloud, Zap,
+  ChevronDown, ChevronRight, ChevronUp, ChevronLeft, Cpu, Cloud, Zap,
   Brain, Sparkles, Star, Users, Filter, TrendingUp, VolumeX, Eye, Minus,
   MessageSquare, Send, MailOpen, AlertOctagon,
 } from "lucide-react";
@@ -219,24 +220,32 @@ function EmailDetailPanel({
   onClose,
   onReply,
   onArchive,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
 }: {
   emailId: string;
   onClose: () => void;
   onReply: () => void;
   onArchive: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }) {
   const { data, isLoading } = useGetEmail(emailId, { query: { enabled: !!emailId } });
   const { logAction } = useEmailActions();
   const markedRead = useRef(false);
   const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [replyOpen, setReplyOpen] = useState(false);
   const [showForward, setShowForward] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showReply, setShowReply] = useState(false);
 
   useEffect(() => {
     markedRead.current = false;
     setBodyExpanded(false);
-    setShowReply(false);
+    setReplyOpen(false);
   }, [emailId]);
 
   useEffect(() => {
@@ -245,6 +254,11 @@ function EmailDetailPanel({
       logAction.mutate({ data: { emailId: data.email.id, action: "open" } });
     }
   }, [data, emailId, logAction]);
+
+  const handleReplyClick = useCallback(() => {
+    setReplyOpen((v) => !v);
+    onReply();
+  }, [onReply]);
 
   if (isLoading) {
     return (
@@ -275,20 +289,36 @@ function EmailDetailPanel({
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* ── Toolbar ── */}
       <div className="shrink-0 px-4 py-2.5 border-b border-border/50 flex items-center justify-between bg-background/80 backdrop-blur-sm">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-secondary"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-secondary"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
+          </button>
+          <button
+            onClick={onPrev}
+            disabled={!hasPrev}
+            className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Previous email (k)"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onNext}
+            disabled={!hasNext}
+            className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Next email (j)"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={() => { setShowReply((v) => !v); onReply(); }}
+            onClick={handleReplyClick}
             className={cn(
-              "p-2 rounded-lg transition-colors",
-              showReply
-                ? "bg-primary/10 text-primary"
-                : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+              "p-2 rounded-lg hover:bg-secondary transition-colors",
+              replyOpen ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground"
             )}
             title="Reply (r)"
           >
@@ -402,7 +432,7 @@ function EmailDetailPanel({
             <div className="flex gap-2 pt-1">
               {isReply ? (
                 <button
-                  onClick={() => setShowReply(true)}
+                  onClick={() => setReplyOpen((v) => !v)}
                   className={cn(
                     "flex-1 py-2 rounded-xl text-sm font-bold uppercase tracking-wide transition-all border",
                     actionMeta.color, actionMeta.border, actionMeta.bg,
@@ -462,24 +492,24 @@ function EmailDetailPanel({
           </motion.div>
         )}
 
-        {/* ── 4. REPLY BOX — shown when user clicks Reply or Compose Reply ── */}
+        {/* ── 4. REPLY BOX (if open manually or AI recommends reply) ── */}
         <AnimatePresence>
-          {showReply && (
+          {(replyOpen || isReply) && (
             <motion.div
               key="reply-box"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.18 }}
-              className="mx-4 mt-3"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden mx-4 mt-3"
             >
               <ReplyBox
                 emailId={emailId}
                 emailSubject={email.subject}
                 emailFrom={email.from}
                 threadId={email.threadId}
-                onSent={() => setShowReply(false)}
-                onBack={() => setShowReply(false)}
+                onSent={() => setReplyOpen(false)}
+                onBack={() => setReplyOpen(false)}
               />
             </motion.div>
           )}
@@ -512,6 +542,18 @@ function EmailDetailPanel({
               </motion.div>
             )}
           </AnimatePresence>
+          {/* Manual reply box below body if reply is not already shown above */}
+          {!isReply && !replyOpen && bodyExpanded && (
+            <div className="mt-3">
+              <button
+                onClick={() => setReplyOpen(true)}
+                className="w-full py-2 px-3 rounded-xl border border-border/30 hover:bg-secondary/40 text-muted-foreground text-xs transition-colors flex items-center gap-2"
+              >
+                <Reply className="w-3.5 h-3.5" />
+                Write a reply
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -639,6 +681,7 @@ function SenderBundle({ sender, items, selectedId, onSelect }: {
 export default function Inbox() {
   const { data: response, isLoading } = useGetEmails();
   const { logAction } = useEmailActions();
+  const queryClient = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -694,12 +737,24 @@ export default function Inbox() {
     logAction.mutate({ data: { emailId: selectedId, action: "reply" } });
   }, [selectedId, logAction]);
 
-  const handleArchive = useCallback(() => {
+  const handleArchive = useCallback(async () => {
     if (!selectedId) return;
-    logAction.mutate({ data: { emailId: selectedId, action: "archive" } });
-    const next = flatEmails[selectedIndex + 1] ?? flatEmails[selectedIndex - 1];
-    setSelectedId(next?.email.id ?? null);
-  }, [selectedId, logAction, flatEmails, selectedIndex]);
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    try {
+      const resp = await fetch(`${apiBase}/api/emails/${selectedId}/archive`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!resp.ok) throw new Error("Archive failed");
+      logAction.mutate({ data: { emailId: selectedId, action: "archive" } });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      toast.success("Archived", { description: "Email removed from inbox" });
+      const next = flatEmails[selectedIndex + 1] ?? flatEmails[selectedIndex - 1];
+      setSelectedId(next?.email.id ?? null);
+    } catch {
+      toast.error("Failed to archive email");
+    }
+  }, [selectedId, logAction, queryClient, flatEmails, selectedIndex]);
 
   useKeyboardNav({
     enabled: true,
@@ -935,6 +990,16 @@ export default function Inbox() {
                 onClose={() => setSelectedId(null)}
                 onReply={handleReply}
                 onArchive={handleArchive}
+                onPrev={() => {
+                  const prev = flatEmails[selectedIndex - 1];
+                  if (prev) setSelectedId(prev.email.id);
+                }}
+                onNext={() => {
+                  const next = flatEmails[selectedIndex + 1];
+                  if (next) setSelectedId(next.email.id);
+                }}
+                hasPrev={selectedIndex > 0}
+                hasNext={selectedIndex < flatEmails.length - 1}
               />
             </motion.div>
           ) : (
@@ -1106,17 +1171,32 @@ function EmailCardRow({
 }) {
   const { email, decision } = data;
   const { logAction } = useEmailActions();
+  const queryClient = useQueryClient();
   const [whyExpanded, setWhyExpanded] = useState(false);
   // Feature 7: inline reply state
   const [replyOpen, setReplyOpen] = useState(false);
   // Feature 3: star/important state
   const [starred, setStarred] = useState(false);
 
-  const handleQuickAction = (e: React.MouseEvent, action: "reply" | "ignore" | "archive") => {
+  const handleQuickAction = async (e: React.MouseEvent, action: "reply" | "ignore" | "archive") => {
     e.preventDefault();
     e.stopPropagation();
     if (action === "reply") {
       setReplyOpen((v) => !v);
+    } else if (action === "archive") {
+      const apiBase = import.meta.env.VITE_API_URL || "";
+      try {
+        const resp = await fetch(`${apiBase}/api/emails/${email.id}/archive`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!resp.ok) throw new Error("Archive failed");
+        logAction.mutate({ data: { emailId: email.id, action } });
+        queryClient.invalidateQueries({ queryKey: ["emails"] });
+        toast.success("Archived", { description: "Email removed from inbox" });
+      } catch {
+        toast.error("Failed to archive email");
+      }
     } else {
       logAction.mutate({ data: { emailId: email.id, action } });
     }

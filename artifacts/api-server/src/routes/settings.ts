@@ -10,10 +10,12 @@ let modelRouting: {
   preferLocal: boolean;
   cloudEscalationScore: number;
   forceCloud: boolean;
+  routingMode: "cloud" | "local" | "hybrid";
 } = {
   preferLocal: false,
   cloudEscalationScore: 65,
   forceCloud: true, // default: always use cloud (no local GPU in dev)
+  routingMode: "cloud",
 };
 
 // ── GET /api/settings ─────────────────────────
@@ -47,14 +49,30 @@ router.get("/settings", async (req, res) => {
 
 // ── PATCH /api/settings/model-routing ────────────────────────────
 router.patch("/settings/model-routing", async (req, res) => {
-  const { preferLocal, cloudEscalationScore, forceCloud } = req.body as {
+  const { preferLocal, cloudEscalationScore, forceCloud, routingMode } = req.body as {
     preferLocal?: boolean;
     cloudEscalationScore?: number;
     forceCloud?: boolean;
+    routingMode?: "cloud" | "local" | "hybrid";
   };
 
-  if (preferLocal !== undefined) modelRouting.preferLocal = preferLocal;
-  if (forceCloud !== undefined) modelRouting.forceCloud = forceCloud;
+  if (routingMode !== undefined) {
+    modelRouting.routingMode = routingMode;
+    if (routingMode === "cloud") {
+      modelRouting.forceCloud = true;
+      modelRouting.preferLocal = false;
+    } else if (routingMode === "local") {
+      modelRouting.forceCloud = false;
+      modelRouting.preferLocal = true;
+    } else if (routingMode === "hybrid") {
+      modelRouting.forceCloud = false;
+      modelRouting.preferLocal = false;
+    }
+  } else {
+    if (preferLocal !== undefined) modelRouting.preferLocal = preferLocal;
+    if (forceCloud !== undefined) modelRouting.forceCloud = forceCloud;
+  }
+
   if (cloudEscalationScore !== undefined) {
     modelRouting.cloudEscalationScore = Math.max(1, Math.min(100, cloudEscalationScore));
   }

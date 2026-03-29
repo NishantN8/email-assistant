@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Settings as SettingsIcon, Cloud, Cpu, Brain, Sliders,
   User, Trash2, CheckCircle2, AlertCircle, RotateCcw,
-  BookOpen, ChevronRight, Zap, MessageSquare, LogOut,
+  BookOpen, ChevronRight, Zap, MessageSquare, LogOut, GitMerge,
 } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { SmartStatsBar } from "@/components/SmartStatsBar";
@@ -16,12 +16,14 @@ const API = import.meta.env.VITE_API_URL || "";
 
 type Tone = "professional" | "friendly" | "brief" | "formal";
 type ReplyLength = "short" | "medium" | "long";
+type RoutingMode = "cloud" | "local" | "hybrid";
 
 interface SettingsData {
   modelRouting: {
     preferLocal: boolean;
     cloudEscalationScore: number;
     forceCloud: boolean;
+    routingMode?: RoutingMode;
   };
   toneProfile: {
     preferredTone: string;
@@ -209,26 +211,82 @@ export default function Settings() {
 
               {/* ── AI Model Routing ── */}
               <SectionCard title="AI Model Routing" icon={Brain} accent="primary">
-                <ToggleRow
-                  label="Force Cloud Mode"
-                  description="Always use OpenAI cloud for all decisions. Recommended unless you have a local GPU with Ollama running."
-                  value={routing?.forceCloud ?? true}
-                  onChange={(v) => patchModelRouting.mutate({ forceCloud: v })}
-                />
-                <ToggleRow
-                  label="Prefer Local GPU"
-                  description="Route classify and summarize tasks to your local Ollama instance when GPU is available and not overloaded."
-                  value={routing?.preferLocal ?? false}
-                  onChange={(v) => patchModelRouting.mutate({ preferLocal: v })}
-                  disabled={routing?.forceCloud ?? true}
-                />
+                {/* 3-mode radio selector */}
+                <div className="space-y-2 pb-4 border-b border-border/40">
+                  <p className="text-xs text-muted-foreground mb-3">Choose how AI decisions are routed between cloud and local GPU.</p>
+                  {(
+                    [
+                      {
+                        mode: "cloud" as const,
+                        icon: Cloud,
+                        label: "Force Cloud",
+                        desc: "Always use OpenAI cloud for all decisions. Best accuracy, requires internet.",
+                        color: "text-blue-400",
+                        activeBg: "bg-blue-500/10 border-blue-500/30",
+                      },
+                      {
+                        mode: "local" as const,
+                        icon: Cpu,
+                        label: "Prefer Local GPU",
+                        desc: "Route tasks to your local Ollama instance. Fast & private, requires GPU.",
+                        color: "text-green-400",
+                        activeBg: "bg-green-500/10 border-green-500/30",
+                      },
+                      {
+                        mode: "hybrid" as const,
+                        icon: GitMerge,
+                        label: "Hybrid (GPU + Cloud)",
+                        desc: "GPU handles low-priority tasks; cloud handles critical & high-priority emails.",
+                        color: "text-violet-400",
+                        activeBg: "bg-violet-500/10 border-violet-500/30",
+                      },
+                    ] as const
+                  ).map(({ mode, icon: Icon, label, desc, color, activeBg }) => {
+                    const currentMode = routing?.routingMode ?? (routing?.forceCloud ? "cloud" : routing?.preferLocal ? "local" : "cloud");
+                    const isActive = currentMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => patchModelRouting.mutate({ routingMode: mode })}
+                        className={cn(
+                          "w-full flex items-start gap-3 p-3 rounded-xl border transition-all text-left",
+                          isActive ? activeBg : "border-border hover:bg-secondary/40"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                          isActive ? `${color.replace("text-", "bg-").replace("400", "400/20")}` : "bg-secondary"
+                        )}>
+                          <Icon className={cn("w-3.5 h-3.5", isActive ? color : "text-muted-foreground")} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-sm font-semibold", isActive ? color : "text-foreground")}>{label}</span>
+                            {isActive && (
+                              <span className={cn("text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border", color, activeBg)}>
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>
+                        </div>
+                        <div className={cn(
+                          "w-4 h-4 rounded-full border-2 shrink-0 mt-1 flex items-center justify-center",
+                          isActive ? `border-current ${color}` : "border-border"
+                        )}>
+                          {isActive && <div className={cn("w-2 h-2 rounded-full", color.replace("text-", "bg-"))} />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <div className="py-3 border-b border-border/40">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div>
                       <p className="text-sm font-medium text-foreground">Cloud Escalation Threshold</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Emails scoring above this priority will always use cloud AI, even when local is preferred.
+                        In Hybrid mode, emails scoring above this priority always use cloud AI.
                       </p>
                     </div>
                     <span className="text-sm font-bold text-primary shrink-0">
@@ -241,7 +299,7 @@ export default function Settings() {
                     max={100}
                     value={routing?.cloudEscalationScore ?? 65}
                     onChange={(e) => patchModelRouting.mutate({ cloudEscalationScore: Number(e.target.value) })}
-                    disabled={routing?.forceCloud ?? true}
+                    disabled={(routing?.routingMode ?? "cloud") !== "hybrid"}
                     className="w-full accent-primary disabled:opacity-40"
                   />
                   <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
@@ -270,6 +328,12 @@ export default function Settings() {
                     <Cpu className="w-3 h-3" />
                     Local GPU {routing?.preferLocal && !routing?.forceCloud ? "preferred" : "off"}
                   </div>
+                  {(routing?.routingMode ?? "cloud") === "hybrid" && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-violet-500/10 border-violet-500/20 text-violet-400">
+                      <GitMerge className="w-3 h-3" />
+                      Hybrid active
+                    </div>
+                  )}
                 </div>
               </SectionCard>
 
