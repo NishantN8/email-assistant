@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace/db";
 import { CreateDecisionBody } from "@workspace/api-zod";
-import { routeTask, callLocalLlm, allQueueStats, getCacheStats, runSwarmAnalysis } from "../ai/index.js";
+import { routeTask, callLocalLlm, allQueueStats, getCacheStats, runSwarmAnalysis, QueueFullError } from "../ai/index.js";
 import { callBestCloudProvider } from "../ai/cloud-providers.js";
 import { createTaskForEmail } from "../services/taskEngine.js";
 
@@ -426,6 +426,10 @@ router.post("/decisions", async (req, res) => {
       updatedAt: now.toISOString(),
     });
   } catch (err) {
+    if (err instanceof QueueFullError) {
+      res.status(503).json({ error: "queue_full", message: (err as Error).message });
+      return;
+    }
     req.log.error({ err }, "Failed to create decision");
     res.status(500).json({ error: "internal_error", message: "Failed to create decision" });
   }

@@ -1,9 +1,10 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { QueueFullError } from "./ai/queue.js";
 
 const app: Express = express();
 
@@ -47,5 +48,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof QueueFullError) {
+    return res.status(503).json({ error: "queue_full", message: err.message });
+  }
+  logger.error(err, "unhandled_error");
+  return res.status(500).json({ error: "internal_server_error" });
+});
 
 export default app;

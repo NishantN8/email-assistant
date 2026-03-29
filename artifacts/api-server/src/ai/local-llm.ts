@@ -2,6 +2,7 @@ import { detectLocalLlm } from "./gpu.js";
 import { db, modelProfilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { getCircuitBreaker } from "./circuit-breaker.js";
 
 export interface LlmResponse {
   text: string;
@@ -113,12 +114,21 @@ export async function discoverAndRegisterModels(): Promise<string[]> {
 
 export async function callLocalLlm(
   prompt: string,
-  opts: { timeoutMs?: number; model?: string } = {}
+  opts: { timeoutMs?: number; model?: string; systemPrompt?: string } = {}
 ): Promise<LlmResponse> {
-  const { timeoutMs = 15_000, model: forcedModel } = opts;
+  const { timeoutMs = 15_000, model: forcedModel, systemPrompt } = opts;
 
   const llm = await detectLocalLlm();
   if (!llm.available) throw new Error("local_llm_unavailable");
+
+  const breaker = getCircuitBreaker("local:ollama", {
+    tripThresholdMs: 8_000,
+    recoveryWindowMs: 30_000,
+  });
+
+  if (breaker.isOpen()) {
+    throw new Error("circuit_open:local:ollama");
+  }
 
   let model: string | null;
   if (forcedModel) {
@@ -129,38 +139,47 @@ export async function callLocalLlm(
 
   if (!model) throw new Error("no_model_available");
 
-  const t0 = Date.now();
-
   const numGpuLayers = parseInt(process.env["OLLAMA_NUM_GPU_LAYERS"] ?? "35");
 
-  const resp = await fetch(`${llm.endpoint}/api/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      prompt,
-      stream: false,
-      options: {
-        num_gpu: numGpuLayers,
-      },
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  const body: Record<string, unknown> = {
+    model,
+    prompt,
+    stream: false,
+    options: {
+      num_gpu: numGpuLayers,
+    },
+  };
 
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`ollama_error: ${err}`);
+  if (systemPrompt) {
+    body["system"] = systemPrompt;
   }
 
-  const data = (await resp.json()) as { response?: string };
-  const text = (data.response || "").trim();
+  const t0 = Date.now();
 
-  return { text, model, durationMs: Date.now() - t0 };
+  const result = await breaker.call(async () => {
+    const resp = await fetch(`${llm.endpoint}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`ollama_error: ${err}`);
+    }
+
+    const data = (await resp.json()) as { response?: string };
+    const text = (data.response || "").trim();
+    return text;
+  });
+
+  return { text: result, model, durationMs: Date.now() - t0 };
 }
 
 export async function callLocalLlmBatch(
   prompts: string[],
-  opts: { timeoutMs?: number; model?: string } = {}
+  opts: { timeoutMs?: number; model?: string; systemPrompt?: string } = {}
 ): Promise<LlmResponse[]> {
   return Promise.all(prompts.map((p) => callLocalLlm(p, opts)));
 }

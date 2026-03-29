@@ -1,3 +1,6 @@
+import { getCircuitBreaker } from "./circuit-breaker.js";
+import { recordProviderCall, sortProvidersByScore } from "./provider-stats.js";
+
 export interface CloudProviderResponse {
   text: string;
   provider: string;
@@ -227,18 +230,45 @@ export async function callBestCloudProvider(
 ): Promise<CloudProviderResponse> {
   const available = CLOUD_PROVIDERS.filter(
     (p) => !!process.env[p.envKey]
-  ).sort((a, b) => a.priority - b.priority);
+  );
 
-  for (const provider of available) {
+  const sorted = sortProvidersByScore(available);
+
+  for (const provider of sorted) {
+    const breaker = getCircuitBreaker(`cloud:${provider.name}`, {
+      tripThresholdMs: 12_000,
+      recoveryWindowMs: 30_000,
+    });
+
+    if (breaker.isOpen()) {
+      continue;
+    }
+
+    const t0 = Date.now();
     try {
-      const result = await provider.call(prompt, systemPrompt);
+      const result = await breaker.call(() => provider.call(prompt, systemPrompt));
+      recordProviderCall(provider.name, Date.now() - t0, true);
       return result;
     } catch (err) {
+      recordProviderCall(provider.name, Date.now() - t0, false);
       console.warn(`[cloud-providers] ${provider.name} failed:`, err);
     }
   }
 
-  return callOpenAI(prompt, systemPrompt);
+  const openaiBreaker = getCircuitBreaker("cloud:openai", {
+    tripThresholdMs: 12_000,
+    recoveryWindowMs: 30_000,
+  });
+
+  const t0 = Date.now();
+  try {
+    const result = await openaiBreaker.call(() => callOpenAI(prompt, systemPrompt));
+    recordProviderCall("openai", Date.now() - t0, true);
+    return result;
+  } catch (err) {
+    recordProviderCall("openai", Date.now() - t0, false);
+    throw err;
+  }
 }
 
 export function getAvailableProviders(): string[] {

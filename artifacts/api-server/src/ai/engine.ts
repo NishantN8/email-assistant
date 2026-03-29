@@ -1,9 +1,10 @@
 import { routeTask, type TaskType } from "./router.js";
 import { callLocalLlm } from "./local-llm.js";
 import { callBestCloudProvider } from "./cloud-providers.js";
-import { localAiQueue, cloudAiQueue } from "./queue.js";
+import { localAiQueue, cloudAiQueue, QueueFullError } from "./queue.js";
 import { db, outcomeSignalsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { recordLocalAttempt, recordFallbackToCloud } from "./provider-stats.js";
 
 export interface AiOutput {
   category: string;
@@ -13,6 +14,9 @@ export interface AiOutput {
   confidence: number;
   model_used: "local" | "cloud";
 }
+
+let _cacheHits = 0;
+let _cacheMisses = 0;
 
 const responseCache = new Map<string, { result: AiOutput; ts: number }>();
 const CACHE_TTL = 60 * 60 * 1000;
@@ -24,10 +28,12 @@ function cacheKey(emailId: string, task: TaskType): string {
 function fromCache(key: string): AiOutput | null {
   const entry = responseCache.get(key);
   if (!entry || Date.now() - entry.ts > CACHE_TTL) return null;
+  _cacheHits++;
   return entry.result;
 }
 
 function toCache(key: string, result: AiOutput) {
+  _cacheMisses++;
   responseCache.set(key, { result, ts: Date.now() });
   if (responseCache.size > 1000) {
     const first = responseCache.keys().next().value;
@@ -36,7 +42,15 @@ function toCache(key: string, result: AiOutput) {
 }
 
 export function getCacheStats() {
-  return { size: responseCache.size, maxSize: 1000 };
+  return {
+    size: responseCache.size,
+    maxSize: 1000,
+    hits: _cacheHits,
+    misses: _cacheMisses,
+    hitRate: _cacheHits + _cacheMisses > 0
+      ? _cacheHits / (_cacheHits + _cacheMisses)
+      : 0,
+  };
 }
 
 export interface EmailPayload {
@@ -50,17 +64,11 @@ export interface EmailPayload {
   receivedAt: Date | null;
 }
 
-function buildClassifyPrompt(email: EmailPayload): string {
-  return `You are an adaptive intelligence engine — not a classifier. Every piece of communication that arrives is an intent signal: a request, a trigger, a decision waiting to happen, an opportunity to act or ignore.
+const CLASSIFY_SYSTEM_PROMPT = `You are an adaptive intelligence engine — not a classifier. Every piece of communication that arrives is an intent signal: a request, a trigger, a decision waiting to happen, an opportunity to act or ignore.
 
 Your job is to detect what this communication is really asking, determine its urgency and stakes, and output a decision with a clear action directive.
 
-Signal received:
-From: ${email.from} <${email.fromEmail}>
-Subject: ${email.subject}
-Preview: ${email.snippet}
-
-Process this signal through your decision engine:
+Process the signal through your decision engine:
 - What is the sender's actual intent? (not just what they said)
 - What does ignoring this cost? What does acting on it gain?
 - What is the correct action, and how urgent is it?
@@ -73,17 +81,10 @@ Respond ONLY with valid JSON in this exact format:
   "action": "reply|pay|review|read|archive|delete|none",
   "confidence": <float 0.0-1.0>
 }`;
-}
 
-function buildDeepReasonPrompt(email: EmailPayload): string {
-  return `You are an adaptive intelligence and decision engine. This signal has been escalated for deep analysis — it carries enough weight to warrant your full reasoning capacity.
+const DEEP_REASON_SYSTEM_PROMPT = `You are an adaptive intelligence and decision engine. This signal has been escalated for deep analysis — it carries enough weight to warrant your full reasoning capacity.
 
 Your role: think like the person receiving this, understand what is truly at stake, detect hidden urgency or opportunity, and output the optimal decision with clear justification.
-
-Signal:
-From: ${email.from} <${email.fromEmail}>
-Subject: ${email.subject}
-Body: ${email.body || email.snippet}
 
 Deep reasoning protocol:
 1. INTENT — What is the sender explicitly asking, and what do they actually want?
@@ -99,23 +100,28 @@ Return ONLY valid JSON:
   "action": "reply|pay|review|read|archive|delete|none",
   "confidence": <float 0.0-1.0>
 }`;
+
+function buildClassifyPrompt(email: EmailPayload): { system: string; prompt: string } {
+  const prompt = `Signal received:
+From: ${email.from} <${email.fromEmail}>
+Subject: ${email.subject}
+Preview: ${email.snippet}`;
+
+  return { system: CLASSIFY_SYSTEM_PROMPT, prompt };
 }
 
-async function callCloud(prompt: string): Promise<string> {
-  try {
-    const resp = await callBestCloudProvider(prompt);
-    return resp.text;
-  } catch {
-    const { openai } = await import("@workspace/integrations-openai-ai-server");
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-      max_tokens: 256,
-    });
-    return resp.choices[0]?.message?.content || "{}";
-  }
+function buildDeepReasonPrompt(email: EmailPayload): { system: string; prompt: string } {
+  const prompt = `Signal:
+From: ${email.from} <${email.fromEmail}>
+Subject: ${email.subject}
+Body: ${email.body || email.snippet}`;
+
+  return { system: DEEP_REASON_SYSTEM_PROMPT, prompt };
+}
+
+async function callCloud(system: string, prompt: string): Promise<string> {
+  const resp = await callBestCloudProvider(prompt, system);
+  return resp.text;
 }
 
 function parseAiJson(raw: string, modelUsed: "local" | "cloud"): AiOutput {
@@ -185,14 +191,15 @@ export async function runAI(
   const routing = await routeTask(task, priorityScore);
 
   const execute = async (): Promise<AiOutput> => {
-    if (routing.tier === "local") {
-      try {
-        const prompt =
-          task === "deep-reasoning"
-            ? buildDeepReasonPrompt(email)
-            : buildClassifyPrompt(email);
+    const { system, prompt } =
+      task === "deep-reasoning"
+        ? buildDeepReasonPrompt(email)
+        : buildClassifyPrompt(email);
 
-        const response = await callLocalLlm(prompt, { timeoutMs: 12_000 });
+    if (routing.tier === "local") {
+      recordLocalAttempt();
+      try {
+        const response = await callLocalLlm(prompt, { timeoutMs: 12_000, systemPrompt: system });
         const result = parseAiJson(response.text, "local");
         const strategyRate = await getStrategySuccessRate(result.action);
         result.priority_score = Math.round(
@@ -201,11 +208,8 @@ export async function runAI(
         return result;
       } catch (err) {
         if (!routing.fallbackAllowed) throw err;
-        const prompt =
-          task === "deep-reasoning"
-            ? buildDeepReasonPrompt(email)
-            : buildClassifyPrompt(email);
-        const raw = await callCloud(prompt);
+        recordFallbackToCloud();
+        const raw = await callCloud(system, prompt);
         const result = parseAiJson(raw, "cloud");
         const strategyRate = await getStrategySuccessRate(result.action);
         result.priority_score = Math.round(
@@ -214,11 +218,7 @@ export async function runAI(
         return result;
       }
     } else {
-      const prompt =
-        task === "deep-reasoning"
-          ? buildDeepReasonPrompt(email)
-          : buildClassifyPrompt(email);
-      const raw = await callCloud(prompt);
+      const raw = await callCloud(system, prompt);
       const result = parseAiJson(raw, "cloud");
       const strategyRate = await getStrategySuccessRate(result.action);
       result.priority_score = Math.round(
@@ -231,36 +231,17 @@ export async function runAI(
   const queue = routing.tier === "local" ? localAiQueue : cloudAiQueue;
   const priority = priorityScore;
 
-  return new Promise<AiOutput>((resolve, reject) => {
-    if ((queue as any)._handlerRegistered !== true) {
-      queue.process(async (job) => {
-        return (job.data as { execute: () => Promise<AiOutput> }).execute();
-      });
-      (queue as any)._handlerRegistered = true;
-    }
+  if ((queue as any)._handlerRegistered !== true) {
+    queue.process(async (job) => {
+      return (job.data as { execute: () => Promise<AiOutput> }).execute();
+    });
+    (queue as any)._handlerRegistered = true;
+  }
 
-    queue
-      .add(task, { execute }, priority)
-      .then((job) => {
-        const checkDone = setInterval(() => {
-          if (job.status === "completed" && job.result) {
-            clearInterval(checkDone);
-            const result = job.result as AiOutput;
-            toCache(key, result);
-            resolve(result);
-          } else if (job.status === "failed") {
-            clearInterval(checkDone);
-            reject(new Error(job.error || "job_failed"));
-          }
-        }, 50);
-
-        setTimeout(() => {
-          clearInterval(checkDone);
-          reject(new Error("job_timeout"));
-        }, 30_000);
-      })
-      .catch(reject);
-  });
+  const job = await queue.add(task, { execute }, priority);
+  const result = (await queue.waitForJob(job)) as AiOutput;
+  toCache(key, result);
+  return result;
 }
 
 export async function runAIBatch(
@@ -281,3 +262,5 @@ export async function runAIBatch(
   }
   return output;
 }
+
+export { QueueFullError };

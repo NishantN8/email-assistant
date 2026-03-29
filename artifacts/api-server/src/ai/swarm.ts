@@ -15,6 +15,7 @@ export interface SwarmResult {
   finalAction: string;
   votedConfidence: number;
   modelUsed: string;
+  agentTier: "none" | "reduced" | "full";
 }
 
 interface EmailInput {
@@ -212,7 +213,7 @@ function aggregateSwarmResults(
   baseScore: number,
   baseCategory: string,
   baseAction: string
-): Omit<SwarmResult, "agents" | "modelUsed"> {
+): Omit<SwarmResult, "agents" | "modelUsed" | "agentTier"> {
   const actionAgent = agentResults.find((a) => a.agent === "Action Agent");
   const urgencyAgent = agentResults.find((a) => a.agent === "Urgency Agent");
 
@@ -253,8 +254,39 @@ export async function runSwarmAnalysis(
   baseCategory: string,
   baseAction: string
 ): Promise<SwarmResult> {
+  if (baseScore <= 40) {
+    return {
+      agents: [],
+      finalCategory: baseCategory,
+      finalPriorityScore: baseScore,
+      finalAction: baseAction,
+      votedConfidence: 0.5,
+      modelUsed: "fast-path:none",
+      agentTier: "none",
+    };
+  }
+
   const llmStatus = await detectLocalLlm();
   const useCloud = !llmStatus.available;
+
+  if (baseScore <= 70) {
+    const [intentResult, urgencyResult, actionResult] = await Promise.all([
+      runIntentAgent(email, useCloud),
+      runUrgencyAgent(email, useCloud),
+      runActionAgent(email, useCloud),
+    ]);
+
+    const agents = [intentResult, urgencyResult, actionResult];
+    const aggregated = aggregateSwarmResults(agents, baseScore, baseCategory, baseAction);
+    const modelUsed = useCloud ? "cloud:swarm-reduced" : "local:swarm-reduced";
+
+    return {
+      agents,
+      ...aggregated,
+      modelUsed,
+      agentTier: "reduced",
+    };
+  }
 
   const [intentResult, urgencyResult, toneResult, actionResult, replyResult] =
     await Promise.all([
@@ -286,5 +318,6 @@ export async function runSwarmAnalysis(
     agents,
     ...aggregated,
     modelUsed,
+    agentTier: "full",
   };
 }
