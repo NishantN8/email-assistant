@@ -1,0 +1,304 @@
+You are a senior AI systems architect and principal engineer.
+
+You are working on a production-grade system called **InboxAI**, which is already fully functional and complex.
+
+---
+
+# 🚨 CRITICAL RULE (DO NOT BREAK ANYTHING)
+
+You MUST:
+
+* NOT remove any existing feature
+* NOT rewrite working systems unnecessarily
+* NOT change existing APIs unless explicitly required
+* NOT break current Gmail sync, AI pipeline, or UI
+* ONLY extend the system safely using modular additions
+
+This is a **brain upgrade**, not a rebuild.
+
+---
+
+# 🎯 OBJECTIVE
+
+Upgrade the system from:
+
+→ Model-driven AI system
+
+Into:
+
+→ Outcome-driven autonomous intelligence system
+
+---
+
+# 🧠 EXISTING SYSTEM (ALREADY BUILT — DO NOT TOUCH CORE)
+
+* Gmail sync via History API
+* PostgreSQL schema (emails, ai_decisions, sender_memory, etc.)
+* 3-stage AI pipeline (rules → scoring → LLM)
+* Reply strategist (6-stage, 4 variants)
+* Model Scout + Model Pool + Evolution Engine
+* Local GPU (Ollama) + OpenAI hybrid routing
+* Superhuman-style UI (3-column)
+* Thread Analysis Mode (10-stage pipeline)
+
+---
+
+# 🚀 YOUR TASK: ADD 4 NEW INTELLIGENCE LAYERS
+
+---
+
+# 🧠 1. OUTCOME ENGINE (NEW CORE)
+
+## Goal:
+
+Track real-world success of replies.
+
+## Requirements:
+
+* Create new table:
+
+CREATE TABLE outcome_signals (
+id SERIAL PRIMARY KEY,
+email_id TEXT,
+reply_id TEXT,
+outcome_type TEXT, -- response_received, ignored, positive, negative, interview, etc.
+response_time_minutes INTEGER,
+created_at TIMESTAMP DEFAULT NOW()
+);
+
+* Integrate with existing outcome_tracking
+
+* Add logic:
+
+→ When sender replies → log outcome
+→ When no reply after threshold → mark as ignored
+→ Detect positive/negative sentiment (light NLP or heuristic)
+
+---
+
+# 🧠 2. STRATEGY MEMORY SYSTEM
+
+## Goal:
+
+Learn which strategies actually work.
+
+## Requirements:
+
+CREATE TABLE strategy_patterns (
+id SERIAL PRIMARY KEY,
+intent TEXT,
+strategy TEXT,
+success_rate FLOAT,
+avg_response_time INTEGER,
+usage_count INTEGER
+);
+
+* Update after each outcome_tracking run
+
+* Link:
+  intent + strategy → outcome
+
+* Use in:
+
+→ Stage 4 (strategy selection)
+→ Stage 3 (forecasting)
+
+---
+
+# 🧠 3. INTENT + OUTCOME MODEL ROUTING
+
+## Upgrade model routing:
+
+FROM:
+→ category-based
+
+TO:
+→ intent + outcome + urgency + GPU load
+
+---
+
+## Modify:
+
+services/modelRouter.js
+
+Add:
+
+function selectModel({ intent, outcome_goal, urgency, gpu_load }) {
+// Prefer best model for intent
+// Adjust for GPU load
+// Use OpenAI only if needed
+}
+
+---
+
+## Add GPU awareness:
+
+* Track:
+
+  * VRAM usage
+  * active inference jobs
+
+* If GPU overloaded:
+  → fallback to lighter model
+
+---
+
+# 🧠 4. ACTION OS LAYER (PRODUCT SHIFT)
+
+## Goal:
+
+Convert emails into tasks
+
+---
+
+## Add table:
+
+CREATE TABLE tasks (
+id SERIAL PRIMARY KEY,
+email_id TEXT,
+action_type TEXT,
+task_text TEXT,
+priority TEXT,
+status TEXT,
+created_at TIMESTAMP DEFAULT NOW()
+);
+
+---
+
+## Add logic:
+
+* Every email → generate:
+
+{
+action_type,
+task,
+priority
+}
+
+* Store in tasks table
+
+* Update UI:
+
+Replace inbox emphasis with:
+
+* Needs Action
+* In Progress
+* Done
+
+---
+
+# 🧠 5. OUTCOME-DRIVEN LEARNING LOOP (CRITICAL)
+
+Modify Evolution Engine:
+
+* Include:
+
+  * outcome_tracking
+  * outcome_signals
+
+* Prioritize:
+
+→ replies that got responses
+→ strategies that resolved threads
+
+* Penalize:
+
+→ ignored replies
+→ escalated threads
+
+---
+
+# 🧠 6. MODEL BEHAVIOR PROFILING
+
+Add:
+
+CREATE TABLE model_profiles (
+model_name TEXT,
+strengths TEXT[],
+weaknesses TEXT[],
+best_use_cases TEXT[]
+);
+
+---
+
+## Use for:
+
+* smarter routing
+* better strategy alignment
+
+---
+
+# 🧠 7. SAFE INTEGRATION RULES
+
+You MUST:
+
+* Wrap new systems as services:
+
+  * services/outcomeEngine.js
+  * services/strategyMemory.js
+  * services/taskEngine.js
+
+* Hook into existing pipeline WITHOUT breaking flow
+
+* Add feature flags:
+
+.env:
+
+ENABLE_OUTCOME_ENGINE=true
+ENABLE_TASK_SYSTEM=true
+ENABLE_ADVANCED_ROUTING=true
+
+---
+
+# ⚡ 8. UI EXTENSIONS (NON-BREAKING)
+
+* Add Action Feed (do NOT remove inbox)
+* Add task indicators on EmailCard
+* Add outcome insights in right panel
+
+---
+
+# 🧠 9. PERFORMANCE CONSTRAINTS
+
+* Do NOT increase latency for standard pipeline
+* Heavy logic must run async (queues / cron)
+* GPU tasks must be batched or throttled
+
+---
+
+# 🧠 10. VALIDATION
+
+Before finishing:
+
+* Ensure:
+
+  * existing emails still load
+  * replies still generate
+  * Gmail sync still works
+  * no DB breaking changes
+
+* Add logs:
+
+"Brain Upgrade Layer Active"
+
+---
+
+# 🎯 FINAL GOAL
+
+System must evolve from:
+
+→ generating replies
+
+To:
+
+→ optimizing outcomes
+→ learning what works
+→ improving automatically
+
+---
+
+You are NOT building features.
+
+You are upgrading the system into an autonomous intelligence engine.
+
+Proceed carefully.
