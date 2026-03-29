@@ -205,15 +205,21 @@ export function AiDecisionCard({
   decision,
   emailId,
   compact = false,
+  onReply,
+  onArchive,
 }: {
   decision: AiDecision;
   emailId: string;
   compact?: boolean;
+  onReply?: () => void;
+  onArchive?: () => void;
 }) {
   const { logAction } = useEmailActions();
 
   const handleOverride = (override: "reply" | "ignore" | "archive") => {
     logAction.mutate({ data: { emailId, action: "override_decision", decisionOverride: override } });
+    if (override === "reply") onReply?.();
+    if (override === "archive") onArchive?.();
   };
 
   // ── Compact right-panel: ACTION / WHY / CONFIDENCE ──

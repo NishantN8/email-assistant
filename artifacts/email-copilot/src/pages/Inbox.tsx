@@ -224,6 +224,7 @@ function EmailDetailPanel({
   onNext,
   hasPrev,
   hasNext,
+  replyTrigger,
 }: {
   emailId: string;
   onClose: () => void;
@@ -233,6 +234,7 @@ function EmailDetailPanel({
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  replyTrigger?: number;
 }) {
   const { data, isLoading } = useGetEmail(emailId, { query: { enabled: !!emailId } });
   const { logAction } = useEmailActions();
@@ -258,6 +260,16 @@ function EmailDetailPanel({
       }, 250);
     }
   }, [replyOpen]);
+
+  // Allow the parent (AI panel reply button) to trigger reply box open
+  const prevTrigger = useRef(replyTrigger ?? 0);
+  useEffect(() => {
+    if (replyTrigger !== undefined && replyTrigger !== prevTrigger.current) {
+      prevTrigger.current = replyTrigger;
+      setReplyMode("plain");
+      setReplyOpen(true);
+    }
+  }, [replyTrigger]);
 
   useEffect(() => {
     if (data?.email && !data.email.isRead && !markedRead.current) {
@@ -614,7 +626,11 @@ function EmailDetailPanel({
 }
 
 // ── Decision panel (right column) ───────────────
-function DecisionPanel({ emailId }: { emailId: string }) {
+function DecisionPanel({ emailId, onReply, onArchive }: {
+  emailId: string;
+  onReply?: () => void;
+  onArchive?: () => void;
+}) {
   const { data, isLoading } = useGetEmail(emailId, { query: { enabled: !!emailId } });
 
   if (isLoading) {
@@ -638,7 +654,13 @@ function DecisionPanel({ emailId }: { emailId: string }) {
 
   return (
     <div className="overflow-y-auto h-full px-4 py-4">
-      <AiDecisionCard decision={data.decision} emailId={emailId} compact />
+      <AiDecisionCard
+        decision={data.decision}
+        emailId={emailId}
+        compact
+        onReply={onReply}
+        onArchive={onArchive}
+      />
     </div>
   );
 }
@@ -720,6 +742,45 @@ function SenderBundle({ sender, items, selectedId, onSelect }: {
   );
 }
 
+// ── Drag-resizable column divider ────────────────
+function DragDivider({ onDrag }: { onDrag: (dx: number) => void }) {
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    dragging.current = true;
+    lastX.current = e.clientX;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const dx = ev.clientX - lastX.current;
+      lastX.current = ev.clientX;
+      onDrag(dx);
+    };
+    const onUp = () => {
+      dragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="w-1.5 shrink-0 flex items-center justify-center cursor-col-resize group relative z-10 hover:bg-primary/20 active:bg-primary/30 transition-colors"
+      title="Drag to resize"
+    >
+      <div className="w-px h-8 bg-border/60 group-hover:bg-primary/50 group-active:bg-primary rounded-full transition-colors" />
+    </div>
+  );
+}
+
 // ── Main Inbox component ─────────────────────────
 export default function Inbox() {
   const { data: response, isLoading } = useGetEmails();
@@ -732,6 +793,11 @@ export default function Inbox() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(["low"]));
   // Feature 2: active filter from SmartStatsBar
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  // Resizable columns
+  const [listWidth, setListWidth] = useState(380);
+  const [aiPanelWidth, setAiPanelWidth] = useState(288);
+  // AI panel reply trigger (incremented to trigger reply in detail panel)
+  const [replyTrigger, setReplyTrigger] = useState(0);
 
   const emails = useMemo(() => response?.emails ?? [], [response]);
 
@@ -746,6 +812,10 @@ export default function Inbox() {
 
   const handleFilterAction = useCallback((filter: string) => {
     setActiveFilter((prev) => prev === filter ? null : filter);
+  }, []);
+
+  const handleAIPanelReply = useCallback(() => {
+    setReplyTrigger((n) => n + 1);
   }, []);
 
   // Flat ordered list for keyboard navigation
@@ -888,11 +958,13 @@ export default function Inbox() {
       <Sidebar />
 
       {/* ── Column 2: Email list ── */}
-      <div className={cn(
-        "flex flex-col border-r border-border/50 bg-background transition-all duration-300 shrink-0",
-        selectedId ? "w-0 lg:w-[380px] overflow-hidden" : "flex-1 lg:w-auto lg:flex-none lg:w-[520px]",
-        "lg:ml-64"
-      )}>
+      <div
+        className={cn(
+          "flex flex-col bg-background shrink-0 overflow-hidden lg:ml-64",
+          !selectedId && "flex-1"
+        )}
+        style={selectedId ? { width: listWidth } : undefined}
+      >
         {/* List header */}
         <div className="shrink-0 px-6 py-5 border-b border-border/50">
           <div className="flex items-center justify-between mb-1">
@@ -1013,9 +1085,16 @@ export default function Inbox() {
         </div>
       </div>
 
+      {/* ── Drag divider: list | detail ── */}
+      {selectedId && (
+        <DragDivider
+          onDrag={(dx) => setListWidth((w) => Math.max(220, Math.min(640, w + dx)))}
+        />
+      )}
+
       {/* ── Column 3: Email detail ── */}
       <div className={cn(
-        "flex-1 flex flex-col min-h-screen border-r border-border/50 relative",
+        "flex-1 flex flex-col min-h-screen relative",
         !selectedId && "hidden lg:flex"
       )}>
         <AnimatePresence mode="wait">
@@ -1043,6 +1122,7 @@ export default function Inbox() {
                 }}
                 hasPrev={selectedIndex > 0}
                 hasNext={selectedIndex < flatEmails.length - 1}
+                replyTrigger={replyTrigger}
               />
             </motion.div>
           ) : (
@@ -1056,12 +1136,22 @@ export default function Inbox() {
         </AnimatePresence>
       </div>
 
+      {/* ── Drag divider: detail | AI panel ── */}
+      {selectedId && (
+        <DragDivider
+          onDrag={(dx) => setAiPanelWidth((w) => Math.max(200, Math.min(480, w - dx)))}
+        />
+      )}
+
       {/* ── Column 4: AI Decision panel ── */}
       {selectedId && (
-        <div className="hidden xl:flex w-72 shrink-0 flex-col border-l border-border/50 bg-card/30 h-screen">
+        <div
+          className="hidden xl:flex shrink-0 flex-col border-l border-border/50 bg-card/30 h-screen"
+          style={{ width: aiPanelWidth }}
+        >
           <div className="shrink-0 px-4 py-3 border-b border-border/50 flex items-center gap-2">
             <Brain className="w-3.5 h-3.5 text-primary shrink-0" />
-            <div>
+            <div className="flex-1 min-w-0">
               <h3 className="text-xs font-bold uppercase tracking-wider text-foreground leading-none">AI Analysis</h3>
               <p className="text-[9px] text-muted-foreground mt-0.5">Action · Why · Confidence</p>
             </div>
@@ -1073,7 +1163,11 @@ export default function Inbox() {
               animate={{ opacity: 1 }}
               className="flex-1 overflow-hidden"
             >
-              <DecisionPanel emailId={selectedId} />
+              <DecisionPanel
+                emailId={selectedId}
+                onReply={handleAIPanelReply}
+                onArchive={handleArchive}
+              />
             </motion.div>
           </AnimatePresence>
         </div>
