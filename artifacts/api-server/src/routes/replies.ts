@@ -26,7 +26,7 @@ async function getToneProfile(userId: string) {
 }
 
 // ── POST /api/replies/generate ────────────────────────────────────
-// Generate 3 reply variants (short, detailed, friendly)
+// Generate 4 reply variants (strategic, concise, persuasive, relationship)
 router.post("/replies/generate", async (req, res) => {
   try {
     const { emailId, tone = "professional", forceRefresh = false } = req.body as {
@@ -81,9 +81,9 @@ router.post("/replies/generate", async (req, res) => {
       id: replyId,
       emailId,
       tone,
-      contentShort: result.replies.find((r) => r.type === "short")?.content || "",
-      contentDetailed: result.replies.find((r) => r.type === "detailed")?.content || "",
-      contentFriendly: result.replies.find((r) => r.type === "friendly")?.content || "",
+      contentShort: result.replies.find((r) => r.type === "strategic")?.content || "",
+      contentDetailed: result.replies.find((r) => r.type === "concise")?.content || "",
+      contentFriendly: result.replies.find((r) => r.type === "persuasive")?.content || "",
       modelUsed: result.modelUsed,
       confidence: result.confidence,
       createdAt: now,

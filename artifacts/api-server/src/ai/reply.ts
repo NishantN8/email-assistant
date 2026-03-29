@@ -3,15 +3,20 @@ import { routeTask, callLocalLlm } from "./index.js";
 
 // ── Types ─────────────────────────────────────────────────────────
 export type Tone = "professional" | "friendly" | "brief" | "formal";
+export type VariantType = "strategic" | "concise" | "persuasive" | "relationship";
 
 export interface ReplyVariant {
-  type: "short" | "detailed" | "friendly";
+  type: VariantType;
   content: string;
+  why_it_works: string;
   model: string;
   tone: Tone;
 }
 
 export interface GeneratedReplies {
+  intent: string;
+  role: string;
+  strategy: string;
   replies: ReplyVariant[];
   confidence: number;
   modelUsed: string;
@@ -62,81 +67,102 @@ async function selectBestModel(
   return { tier: routing.tier, reason: routing.reason };
 }
 
-// ── Prompt builder ────────────────────────────────────────────────
-function buildReplyPrompt(
+// ── 6-Stage Strategist System Prompt ─────────────────────────────
+const STRATEGIST_SYSTEM = `You are a world-class communication strategist, elite writer, behavioral psychologist, and decision intelligence engine.
+
+You design communication that achieves outcomes — not just responses.
+
+Your goal: maximize real-world outcome (response, approval, conversion, relationship) while minimizing user effort. The user should rarely need to edit.
+
+EXECUTION STAGES:
+1. INTENT MODELING — understand explicit + hidden intent, sender psychology, urgency, stakes
+2. ROLE SELECTION — decide who the user should be (founder, engineer, peer, negotiator, etc.)
+3. STRATEGY — define primary goal, secondary goal, what to include/avoid
+4. GENERATE 4 VARIANTS — each optimized for a different dimension
+5. SELF-CRITIQUE — ensure each reply sounds natural, human, outcome-focused
+6. MICRO-OPTIMIZE — remove fluff, sharpen phrasing, add subtle persuasion
+
+REPLY VARIANTS:
+- strategic: maximizes the desired outcome; well-structured, outcome-driven
+- concise: fastest possible reply; ultra-brief, direct, no filler
+- persuasive: influence-focused; subtle social proof, confidence framing
+- relationship: warm and human; builds trust and rapport
+
+RULES:
+- NEVER generate generic replies
+- NEVER sound robotic or corporate
+- NEVER over-explain
+- ALWAYS sound like an experienced, thoughtful human wrote it
+- Each reply must feel natural, context-aware, and tailored to the sender's psychology
+
+OUTPUT FORMAT (strict JSON):
+{
+  "intent": "1 sentence: what they're explicitly asking + what they actually want",
+  "role": "who the user should be in this interaction (e.g. 'Senior engineer — clear, decisive')",
+  "strategy": "1-2 sentences: communication approach and why",
+  "confidence": 0.0 to 1.0,
+  "replies": [
+    {
+      "type": "strategic",
+      "content": "the reply text only — no subject line, no greeting unless natural, no sign-off",
+      "why_it_works": "1 sentence: the psychological or tactical reason this reply achieves the goal"
+    },
+    {
+      "type": "concise",
+      "content": "...",
+      "why_it_works": "..."
+    },
+    {
+      "type": "persuasive",
+      "content": "...",
+      "why_it_works": "..."
+    },
+    {
+      "type": "relationship",
+      "content": "...",
+      "why_it_works": "..."
+    }
+  ]
+}`;
+
+// ── Strategist prompt builder ─────────────────────────────────────
+function buildStrategistPrompt(
   email: ReplyEmailContext,
   tone: Tone,
-  profile: ToneProfile,
-  variant: "short" | "detailed" | "friendly"
+  profile: ToneProfile
 ): string {
-  const toneGuide: Record<Tone, string> = {
-    professional: "professional, clear, and respectful",
-    friendly: "warm, personable, and conversational",
-    brief: "concise and direct — no filler words",
-    formal: "formal, polished, and structured",
-  };
-
-  const lengthGuide = {
-    short: "1-2 sentences max. Get straight to the point.",
-    detailed: "3-5 sentences. Cover key points thoroughly.",
-    friendly: "2-3 sentences. Be warm and personal.",
-  };
+  const toneNote = {
+    professional: "Lean professional and clear.",
+    friendly: "Lean warm and conversational.",
+    brief: "Keep all replies short — under 3 sentences each.",
+    formal: "Use formal language throughout.",
+  }[tone];
 
   const examplesBlock =
     profile.exampleReplies && profile.exampleReplies.length > 0
-      ? `\n\nPast reply examples from this user (match their style):\n${profile.exampleReplies.slice(-3).map((e, i) => `${i + 1}. "${e}"`).join("\n")}`
+      ? `\n\nUser's past replies (mirror their voice):\n${profile.exampleReplies
+          .slice(-3)
+          .map((e, i) => `${i + 1}. "${e}"`)
+          .join("\n")}`
       : "";
 
-  const hintsBlock =
-    profile.vocabularyHints && profile.vocabularyHints.length > 0
-      ? `\nVocabulary the user prefers: ${profile.vocabularyHints.join(", ")}`
-      : "";
+  const bodyPreview = (email.body || email.snippet || "").slice(0, 1200);
 
-  return `You are an elite AI email assistant writing a reply on behalf of the user.
-
-TONE: ${toneGuide[tone]}
-LENGTH: ${lengthGuide[variant]}${examplesBlock}${hintsBlock}
+  return `Tone preference: ${toneNote}${examplesBlock}
 
 EMAIL TO REPLY TO:
 From: ${email.from} <${email.fromEmail}>
 Subject: ${email.subject}
+Priority score: ${email.priorityScore}/100
+Category: ${email.category}
 ---
-${email.body || email.snippet}
+${bodyPreview}
 ---
 
-Write ONLY the reply body text. No greeting required unless natural. No subject line. No "Dear..." unless formal. Do not include "Best regards" or sign-off. Output raw text only.`;
+Analyze the email and generate your structured reply intelligence as JSON.`;
 }
 
-// ── Single variant generator ──────────────────────────────────────
-async function generateSingleVariant(
-  email: ReplyEmailContext,
-  tone: Tone,
-  variant: "short" | "detailed" | "friendly",
-  profile: ToneProfile,
-  tier: "local" | "cloud"
-): Promise<{ content: string; model: string }> {
-  const prompt = buildReplyPrompt(email, tone, profile, variant);
-
-  if (tier === "local") {
-    try {
-      const resp = await callLocalLlm(prompt, { timeoutMs: 20_000 });
-      return { content: resp.text.trim(), model: `local:${resp.model}` };
-    } catch {
-      // fall through to cloud
-    }
-  }
-
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.7,
-    max_tokens: variant === "short" ? 100 : variant === "detailed" ? 300 : 200,
-  });
-  const content = resp.choices[0]?.message?.content?.trim() || "";
-  return { content, model: "cloud:gpt-4o-mini" };
-}
-
-// ── Main: generate all 3 variants ────────────────────────────────
+// ── Single-call JSON generation (all 4 variants) ──────────────────
 export async function generateReply(
   email: ReplyEmailContext,
   tone: Tone = "professional",
@@ -149,43 +175,114 @@ export async function generateReply(
   }
 
   const { tier } = await selectBestModel(email.priorityScore);
+  const userPrompt = buildStrategistPrompt(email, tone, profile);
 
-  const [short, detailed, friendly] = await Promise.all([
-    generateSingleVariant(email, tone, "short", profile, tier),
-    generateSingleVariant(email, tone, "detailed", profile, tier),
-    generateSingleVariant(email, "friendly", "friendly", profile, tier),
-  ]);
+  let rawJson = "";
+  let modelUsed = "cloud:gpt-4o-mini";
+
+  // Try local first if routed that way
+  if (tier === "local") {
+    try {
+      const resp = await callLocalLlm(
+        `${STRATEGIST_SYSTEM}\n\n${userPrompt}`,
+        { timeoutMs: 30_000 }
+      );
+      rawJson = resp.text.trim();
+      modelUsed = `local:${resp.model}`;
+    } catch {
+      // fall through to cloud
+    }
+  }
+
+  // Cloud JSON mode
+  if (!rawJson) {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: STRATEGIST_SYSTEM },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.75,
+      max_tokens: 1200,
+      response_format: { type: "json_object" },
+    });
+    rawJson = resp.choices[0]?.message?.content?.trim() || "{}";
+    modelUsed = "cloud:gpt-4o-mini";
+  }
+
+  // Parse and validate
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    parsed = {};
+  }
+
+  const variantOrder: VariantType[] = ["strategic", "concise", "persuasive", "relationship"];
+  const replies: ReplyVariant[] = variantOrder.map((type) => {
+    const found = parsed.replies?.find((r: any) => r.type === type) || {};
+    return {
+      type,
+      content: found.content || "",
+      why_it_works: found.why_it_works || "",
+      model: modelUsed,
+      tone,
+    };
+  });
 
   const result: GeneratedReplies = {
-    replies: [
-      { type: "short", content: short.content, model: short.model, tone },
-      { type: "detailed", content: detailed.content, model: detailed.model, tone },
-      { type: "friendly", content: friendly.content, model: friendly.model, tone: "friendly" },
-    ],
-    confidence: 0.88,
-    modelUsed: tier === "local" ? short.model : "cloud:gpt-4o-mini",
+    intent: parsed.intent || "",
+    role: parsed.role || "",
+    strategy: parsed.strategy || "",
+    confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.88,
+    replies,
+    modelUsed,
   };
 
   cacheReplies(email.id, tone, result);
   return result;
 }
 
-// ── Streaming variant (SSE) ───────────────────────────────────────
+// ── Streaming variant (SSE) — streams the strategic variant ──────
 export async function streamReply(
   email: ReplyEmailContext,
   tone: Tone,
   profile: ToneProfile,
-  variant: "short" | "detailed" | "friendly",
+  variant: VariantType | "short" | "detailed" | "friendly",
   onChunk: (chunk: string) => void
 ): Promise<{ model: string }> {
-  const prompt = buildReplyPrompt(email, tone, profile, variant);
   const { tier } = await selectBestModel(email.priorityScore);
+
+  // Map legacy variant names
+  const variantMap: Record<string, VariantType> = {
+    short: "concise",
+    detailed: "strategic",
+    friendly: "relationship",
+  };
+  const resolvedVariant = variantMap[variant as string] || (variant as VariantType);
+
+  const variantDesc: Record<VariantType, string> = {
+    strategic: "outcome-maximizing, well-structured, decisive",
+    concise: "ultra-brief, direct, no filler — maximum 2 sentences",
+    persuasive: "influence-focused, confidence-framed, subtle social proof",
+    relationship: "warm, human, rapport-building",
+  };
+
+  const bodyPreview = (email.body || email.snippet || "").slice(0, 800);
+  const streamPrompt = `You are an elite email reply writer.
+
+Write a ${variantDesc[resolvedVariant]} reply to this email.
+Tone: ${tone}
+From: ${email.from} <${email.fromEmail}>
+Subject: ${email.subject}
+---
+${bodyPreview}
+---
+Output ONLY the reply text. No subject line. No greeting unless natural. No sign-off.`;
 
   if (tier === "local") {
     try {
-      // Ollama doesn't support chunk streaming in our current client,
-      // so we get the full response then simulate streaming
-      const resp = await callLocalLlm(prompt, { timeoutMs: 20_000 });
+      const resp = await callLocalLlm(streamPrompt, { timeoutMs: 20_000 });
       const words = resp.text.trim().split(" ");
       for (const word of words) {
         onChunk(word + " ");
@@ -193,17 +290,16 @@ export async function streamReply(
       }
       return { model: `local:${resp.model}` };
     } catch {
-      // fall through to cloud streaming
+      // fall through to cloud
     }
   }
 
-  // Real OpenAI streaming
   const stream = await openai.chat.completions.create({
     model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: "user", content: streamPrompt }],
     stream: true,
     temperature: 0.7,
-    max_tokens: variant === "short" ? 100 : variant === "detailed" ? 300 : 200,
+    max_tokens: resolvedVariant === "concise" ? 80 : 300,
   });
 
   for await (const chunk of stream) {
