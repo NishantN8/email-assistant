@@ -181,10 +181,18 @@ export function Sidebar() {
         </div>
 
         {/* Settings / Logout */}
-        <button className="flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200 w-full">
-          <Settings className="w-5 h-5 opacity-70" />
+        <Link
+          href="/settings"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 w-full",
+            location === "/settings"
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+          )}
+        >
+          <Settings className={cn("w-5 h-5", location === "/settings" ? "text-primary" : "opacity-70")} />
           Settings
-        </button>
+        </Link>
 
         {isConnected && (
           <button

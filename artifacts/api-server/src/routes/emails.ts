@@ -157,6 +157,88 @@ router.get("/emails/inbox-stats", async (req, res) => {
   }
 });
 
+// ── GET /api/emails/sent ──────────────────────
+router.get("/emails/sent", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit ?? 50);
+    const offset = Number(req.query.offset ?? 0);
+    const rows = await db
+      .select()
+      .from(emailsTable)
+      .where(sql`${emailsTable.labels} @> '["SENT"]'::jsonb`)
+      .orderBy(desc(emailsTable.receivedAt))
+      .limit(limit)
+      .offset(offset);
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(emailsTable)
+      .where(sql`${emailsTable.labels} @> '["SENT"]'::jsonb`);
+    res.json({
+      emails: rows.map((e) => ({ email: { ...e, labels: (e.labels as string[]) || [], receivedAt: e.receivedAt.toISOString() } })),
+      total: Number(totalResult[0]?.count ?? 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get sent emails");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
+// ── GET /api/emails/trash ─────────────────────
+router.get("/emails/trash", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit ?? 50);
+    const offset = Number(req.query.offset ?? 0);
+    const rows = await db
+      .select()
+      .from(emailsTable)
+      .where(sql`${emailsTable.labels} @> '["TRASH"]'::jsonb`)
+      .orderBy(desc(emailsTable.receivedAt))
+      .limit(limit)
+      .offset(offset);
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(emailsTable)
+      .where(sql`${emailsTable.labels} @> '["TRASH"]'::jsonb`);
+    res.json({
+      emails: rows.map((e) => ({ email: { ...e, labels: (e.labels as string[]) || [], receivedAt: e.receivedAt.toISOString() } })),
+      total: Number(totalResult[0]?.count ?? 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get trash emails");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
+// ── GET /api/emails/archive ───────────────────
+router.get("/emails/archive", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit ?? 50);
+    const offset = Number(req.query.offset ?? 0);
+    const rows = await db
+      .select()
+      .from(emailsTable)
+      .where(
+        sql`NOT (${emailsTable.labels} @> '["INBOX"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb) AND NOT (${emailsTable.labels} @> '["SENT"]'::jsonb)`
+      )
+      .orderBy(desc(emailsTable.receivedAt))
+      .limit(limit)
+      .offset(offset);
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(emailsTable)
+      .where(
+        sql`NOT (${emailsTable.labels} @> '["INBOX"]'::jsonb) AND NOT (${emailsTable.labels} @> '["TRASH"]'::jsonb) AND NOT (${emailsTable.labels} @> '["SENT"]'::jsonb)`
+      );
+    res.json({
+      emails: rows.map((e) => ({ email: { ...e, labels: (e.labels as string[]) || [], receivedAt: e.receivedAt.toISOString() } })),
+      total: Number(totalResult[0]?.count ?? 0),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get archive emails");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 router.get("/emails/:id", async (req, res) => {
   try {
     const { id } = req.params;

@@ -7,6 +7,7 @@ import syncRouter from "./sync";
 import authRouter from "./auth";
 import aiStatusRouter from "./ai-status";
 import repliesRouter from "./replies";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(actionsRouter);
 router.use(syncRouter);
 router.use(aiStatusRouter);
 router.use(repliesRouter);
+router.use(settingsRouter);
 
 export default router;

@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +7,10 @@ import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import Inbox from "@/pages/Inbox";
 import EmailDetail from "@/pages/EmailDetail";
+import Sent from "@/pages/Sent";
+import Archive from "@/pages/Archive";
+import Trash from "@/pages/Trash";
+import Settings from "@/pages/Settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,9 +42,10 @@ function Router() {
     <Switch>
       <Route path="/" component={Inbox} />
       <Route path="/email/:id" component={EmailDetail} />
-      <Route path="/sent"><Redirect to="/" /></Route>
-      <Route path="/archive"><Redirect to="/" /></Route>
-      <Route path="/trash"><Redirect to="/" /></Route>
+      <Route path="/sent" component={Sent} />
+      <Route path="/archive" component={Archive} />
+      <Route path="/trash" component={Trash} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );
