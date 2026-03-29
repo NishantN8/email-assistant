@@ -977,6 +977,11 @@ export default function Inbox() {
         .map((s) => ({ ...s, items: s.items.filter((e) => e.email.category === "TRANSACTIONS") }))
         .filter((s) => s.items.length > 0);
     }
+    if (activeFilter === "unread") {
+      return allSections
+        .map((s) => ({ ...s, items: s.items.filter((e) => !e.email.isRead) }))
+        .filter((s) => s.items.length > 0);
+    }
     return allSections;
   }, [allSections, activeFilter]);
 
@@ -1038,7 +1043,7 @@ export default function Inbox() {
                   className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/25 text-primary text-[10px] font-bold hover:bg-primary/25 transition-colors"
                 >
                   <Filter className="w-2.5 h-2.5" />
-                  {activeFilter === "priority" ? "Priority only" : activeFilter}
+                  {{ priority: "Priority only", critical: "Critical only", payments: "Payments", unread: "Unread only" }[activeFilter] ?? activeFilter}
                   <X className="w-2.5 h-2.5" />
                 </button>
               )}
