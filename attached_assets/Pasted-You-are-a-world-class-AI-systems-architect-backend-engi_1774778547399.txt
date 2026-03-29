@@ -1,0 +1,240 @@
+You are a world-class AI systems architect, backend engineer, and product designer (Linear, Superhuman, Notion level).
+
+Your task is to design and implement a production-grade AI email copilot system that functions as a decision engine, not a traditional email client.
+
+This system must integrate AI intelligence, behavioral learning, and a decision-first UI while operating under strict Gmail API rate limits using a cache-first, queue-driven architecture.
+
+🎯 CORE OBJECTIVE
+Build a system that:
+
+Never misses important emails
+Eliminates inbox clutter
+Feels real-time while minimizing API usage
+Makes decisions for the user (not just classifications)
+Learns continuously from user behavior
+🧠 SYSTEM ARCHITECTURE
+Frontend
+Framework: Next.js 14 (App Router), React 18
+State: React Context + React Query/SWR
+UI: TailwindCSS (preferred) or Chakra UI
+Auth: Google OAuth (client-managed tokens with refresh)
+API Layer: Internal endpoints only
+Core Components:
+PriorityList (🔥 Priority)
+
+NeedsActionList (⚡ Needs Action)
+
+UpdatesList (📥 Updates)
+
+LowPriorityList (🧠 Low Priority)
+
+EmailCard:
+
+AI priority score
+Reason tag
+Actions (reply, ignore, archive)
+ActionStrip:
+
+“3 emails need action”
+“2 payments detected”
+BundledThreads:
+
+Collapsed repeated emails
+AI Decision Card:
+
+Recommended action
+Reason
+Confidence
+Override / Apply
+Backend
+Framework: Express 4
+Queue: BullMQ (Redis-backed)
+Cache: Redis (dedupe, TTL, fast lookups)
+Database: Postgres
+Responsibilities:
+Gmail sync via History API (incremental only)
+Cache-first email retrieval
+AI pipeline orchestration
+Decision generation
+User memory updates
+Data Layer
+Postgres Stores:
+Emails (materialized view)
+AI decisions
+User behavior logs
+Memory graph (User ↔ Sender ↔ Interaction ↔ Intent)
+Redis:
+Cache for inbox
+API deduplication
+Rate-limit state
+Queue job metadata
+DevOps
+Docker (Postgres + Redis + optional model runners)
+.env.local for secrets
+CI/CD via GitHub Actions
+Background workers separated from API server
+🧠 AI DECISION ENGINE (CORE LOGIC)
+For every email, generate:
+
+{
+"category": "PRIMARY | CRITICAL | TRANSACTIONS | PROMOTIONS | SOCIAL | LOW_PRIORITY",
+"priority_score": 0-100,
+"urgency": "critical | high | medium | low",
+"recommended_action": "reply | ignore | archive | track | read_later",
+"confidence": 0-1,
+"reason": "Clear explanation"
+}
+
+⚙️ MULTI-STAGE AI PIPELINE
+Fast Classifier (cheap model or rules)
+Priority Scorer (logic + ML + behavior)
+Deep Reasoning (only for high-priority emails)
+Optimize for cost and latency.
+
+🧠 DECISION RULES
+Apply in order:
+
+1. Critical Detection
+OTP
+Security alerts
+Payment failures
+→ Always CRITICAL
+
+2. Human Detection
+Natural tone
+Known sender
+Reply threads
+3. Transaction Detection
+Orders, payments, bills
+4. Promotion Detection
+Marketing patterns, unsubscribe, bulk
+5. Behavioral Re-ranking
+Use:
+
+Open rate
+Reply frequency
+Ignore patterns
+Time spent
+Recency
+🧠 USER MEMORY SYSTEM
+Maintain:
+
+User ↔ Sender ↔ Interaction ↔ Intent
+
+Update on:
+
+Open
+Reply
+Ignore
+Archive
+This memory directly impacts priority scoring.
+
+⚡ RATE LIMIT + PERFORMANCE STRATEGY
+NEVER call Gmail API from frontend
+ALWAYS use cached data first
+Sync via BullMQ jobs
+Use incremental sync only
+Apply exponential backoff on quota errors
+Dynamically adjust sync frequency based on activity
+⚡ INTERNAL APIs
+GET /internal/email-data → returns cached inbox
+POST /internal/decision → returns AI decision
+POST /internal/action → logs user action + updates memory
+🎨 UI SYSTEM (DECISION-FIRST)
+Replace Tabs With:
+🔥 Priority
+⚡ Needs Action
+📥 Updates
+🧠 Low Priority
+Inbox Behavior
+Each EmailCard must show:
+
+Priority score (0–100)
+Reason tag (AI-generated)
+Visual importance (color + size)
+Visual Hierarchy
+High → highlighted
+Medium → standard
+Low → collapsed/bundled
+Action Strip
+Display:
+
+“X emails need action”
+“Y payments detected”
+Email View
+At top:
+
+AI Summary
+
+Key actions:
+
+Reply
+Ignore
+Follow-up
+AI Decision Card
+Show:
+
+Recommended action
+Reason
+Confidence
+Allow:
+
+Override
+Apply
+🧠 EXPLAINABILITY
+Every email must support:
+
+→ “Why this email?”
+
+Examples:
+
+“You interacted with similar emails”
+“Matches job search intent”
+“Contains payment deadline”
+⚡ SMART FEATURES
+Auto-bundle repeated emails
+Collapse low priority
+Predict next important email
+Highlight urgent content
+Generate summaries
+⚡ IMPLEMENTATION PLAN
+Phase 1: Foundation
+Setup Next.js + Express
+Docker (Postgres + Redis)
+OAuth + Gmail sync
+BullMQ queue
+Phase 2: AI Pipeline
+Fast classifier
+Priority scoring
+Deep reasoning integration
+User memory graph
+Phase 3: UI
+Decision-first inbox
+EmailCard
+AI Decision Card
+Action Strip
+Phase 4: Performance
+Cache-first backend
+Rate limit handling
+Query optimization
+Phase 5: Intelligence
+Behavior learning
+Predictive ranking
+Smart bundling
+🚫 STRICT RULES
+NEVER rely only on keyword matching
+NEVER treat all automated emails as low priority
+NEVER expose raw Gmail API to frontend
+NEVER use static Gmail-like tabs
+NEVER hide AI reasoning
+🎯 FINAL GOAL
+Build a system that:
+
+Thinks like a human assistant
+Makes decisions, not classifications
+Learns continuously
+Scales efficiently
+Feels superior to Gmail, Superhuman, and Outlook
+This is the future of email.
+
+Act like you are building the default inbox for the next decade.

@@ -1,0 +1,16 @@
+packages:
+  "framer-motion": "For fluid layout animations and micro-interactions in the inbox"
+  "date-fns": "For elegant, human-readable relative time formatting"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for safely merging tailwind classes"
+  "lucide-react": "Beautiful consistent icon set"
+
+images:
+  - path: "artifacts/email-copilot/public/images/empty-inbox.png"
+    description: "Abstract, 3D rendered clean empty tray in a sleek dark environment with a subtle blue glowing core, professional and minimal"
+    aspect_ratio: "1:1"
+
+notes:
+  - Assumes @workspace/api-client-react provides all TanStack queries/mutations
+  - Uses Tailwind v4 and React 19
+  - UI is strictly dark-mode professional per design requirements

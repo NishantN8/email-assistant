@@ -1,8 +1,8 @@
-# Workspace
+# AI Email Copilot
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+A production-grade AI email copilot system that functions as a decision engine. It classifies, prioritizes, and suggests actions for every email using AI — not just keyword matching. The UI is decision-first, replacing traditional Gmail-style tabs with 4 intelligent sections.
 
 ## Stack
 
@@ -10,8 +10,10 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Node.js version**: 24
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
+- **Frontend**: React 18 + Vite, TailwindCSS, TanStack Query, Framer Motion
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
+- **AI**: OpenAI gpt-5-mini via Replit AI Integrations (no user API key needed)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
@@ -20,77 +22,88 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server (emails, decisions, actions, sync)
+│   └── email-copilot/      # React frontend (inbox, email detail, AI decision cards)
+├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+│   ├── api-zod/            # Generated Zod schemas
+│   ├── db/                 # Drizzle ORM schema + DB connection
+│   └── integrations-openai-ai-server/  # OpenAI AI integration
+├── scripts/
+│   └── src/seed-emails.ts  # Seed demo email data
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
 
-## TypeScript & Composite Projects
+## Database Schema
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+- `emails` — Email cache with AI classification (category, priorityScore, urgency)
+- `ai_decisions` — AI decisions per email (recommendedAction, confidence, reason, summary, keyPoints)
+- `user_actions` — Behavior log (open, reply, ignore, archive, override)
+- `sender_memory` — Per-sender behavioral statistics for adaptive scoring
+- `sync_state` — Gmail sync state tracking
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+## API Endpoints
 
-## Root Scripts
+All routes under `/api`:
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `GET /api/emails` — Returns paginated email list with decisions, filterable by category
+- `GET /api/emails/summary` — Returns inbox action counts (needsAction, payments, critical, unread)
+- `GET /api/emails/:id` — Returns single email with AI decision
+- `POST /api/decisions` — Generate/refresh AI decision for an email
+- `GET /api/decisions/:emailId` — Get cached AI decision
+- `POST /api/actions` — Log user action + update sender memory
+- `POST /api/sync/trigger` — Trigger email sync
+- `GET /api/sync/status` — Current sync status
 
-## Packages
+## AI Decision Engine
 
-### `artifacts/api-server` (`@workspace/api-server`)
+For each email, generates:
+- `category`: PRIMARY | CRITICAL | TRANSACTIONS | PROMOTIONS | SOCIAL | LOW_PRIORITY
+- `priorityScore`: 0-100
+- `urgency`: critical | high | medium | low
+- `recommendedAction`: reply | ignore | archive | track | read_later
+- `confidence`: 0-1
+- `reason`: concise explanation
+- `summary`: 2-3 sentence summary
+- `keyPoints`: array of key action items
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+## UI Sections
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+1. 🔥 **Priority** — High urgency emails (priorityScore 70+)
+2. ⚡ **Needs Action** — Emails requiring reply/follow-up
+3. 📥 **Updates** — Transactions, notifications, newsletters
+4. 🧠 **Low Priority** — Everything else, collapsed by default
 
-### `lib/db` (`@workspace/db`)
+## Seeding Demo Data
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+```bash
+pnpm --filter @workspace/scripts run seed-emails
+```
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
+## Development
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+```bash
+# Run API server
+pnpm --filter @workspace/api-server run dev
 
-### `lib/api-spec` (`@workspace/api-spec`)
+# Run frontend
+pnpm --filter @workspace/email-copilot run dev
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
+# Regenerate API client from OpenAPI spec
+pnpm --filter @workspace/api-spec run codegen
 
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
+# Push DB schema changes
+pnpm --filter @workspace/db run push
+```
 
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
+## Environment Variables
 
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- `DATABASE_URL` — PostgreSQL connection string (auto-provisioned by Replit)
+- `AI_INTEGRATIONS_OPENAI_BASE_URL` — Replit AI proxy URL (auto-provisioned)
+- `AI_INTEGRATIONS_OPENAI_API_KEY` — Replit AI key (auto-provisioned)
+- `SESSION_SECRET` — Session secret for auth

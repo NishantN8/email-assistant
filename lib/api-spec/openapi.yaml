@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Email Copilot API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: emails
+    description: Email management
+  - name: decisions
+    description: AI decision engine
+  - name: actions
+    description: User action logging
+  - name: sync
+    description: Email sync management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,161 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /emails:
+    get:
+      operationId: getEmails
+      tags: [emails]
+      summary: Get cached inbox emails
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [PRIMARY, CRITICAL, TRANSACTIONS, PROMOTIONS, SOCIAL, LOW_PRIORITY]
+        - name: limit
+          in: query
+          schema:
+            type: number
+        - name: offset
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of emails with AI decisions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailListResponse"
+
+  /emails/{id}:
+    get:
+      operationId: getEmail
+      tags: [emails]
+      summary: Get a single email by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email with AI decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailWithDecision"
+        "404":
+          description: Email not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /emails/summary:
+    get:
+      operationId: getInboxSummary
+      tags: [emails]
+      summary: Get inbox action summary
+      responses:
+        "200":
+          description: Inbox summary with action counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InboxSummary"
+
+  /decisions:
+    post:
+      operationId: createDecision
+      tags: [decisions]
+      summary: Generate AI decision for an email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDecisionRequest"
+      responses:
+        "200":
+          description: AI decision generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiDecision"
+
+  /decisions/{emailId}:
+    get:
+      operationId: getDecision
+      tags: [decisions]
+      summary: Get AI decision for a specific email
+      parameters:
+        - name: emailId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: AI decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiDecision"
+        "404":
+          description: Decision not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /actions:
+    post:
+      operationId: logAction
+      tags: [actions]
+      summary: Log a user action and update memory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogActionRequest"
+      responses:
+        "200":
+          description: Action logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /sync/trigger:
+    post:
+      operationId: triggerSync
+      tags: [sync]
+      summary: Trigger email sync
+      responses:
+        "200":
+          description: Sync triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatusResponse"
+
+  /sync/status:
+    get:
+      operationId: getSyncStatus
+      tags: [sync]
+      summary: Get current sync status
+      responses:
+        "200":
+          description: Sync status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatusResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +195,209 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    Email:
+      type: object
+      properties:
+        id:
+          type: string
+        gmailId:
+          type: string
+        threadId:
+          type: string
+        subject:
+          type: string
+        from:
+          type: string
+        fromEmail:
+          type: string
+        to:
+          type: string
+        snippet:
+          type: string
+        body:
+          type: string
+        isRead:
+          type: boolean
+        isStarred:
+          type: boolean
+        labels:
+          type: array
+          items:
+            type: string
+        receivedAt:
+          type: string
+        category:
+          type: string
+          enum: [PRIMARY, CRITICAL, TRANSACTIONS, PROMOTIONS, SOCIAL, LOW_PRIORITY]
+        priorityScore:
+          type: number
+        urgency:
+          type: string
+          enum: [critical, high, medium, low]
+        bundledCount:
+          type: number
+      required:
+        - id
+        - subject
+        - from
+        - fromEmail
+        - snippet
+        - isRead
+        - isStarred
+        - labels
+        - receivedAt
+        - category
+        - priorityScore
+        - urgency
+
+    AiDecision:
+      type: object
+      properties:
+        id:
+          type: string
+        emailId:
+          type: string
+        category:
+          type: string
+          enum: [PRIMARY, CRITICAL, TRANSACTIONS, PROMOTIONS, SOCIAL, LOW_PRIORITY]
+        priorityScore:
+          type: number
+        urgency:
+          type: string
+          enum: [critical, high, medium, low]
+        recommendedAction:
+          type: string
+          enum: [reply, ignore, archive, track, read_later]
+        confidence:
+          type: number
+        reason:
+          type: string
+        summary:
+          type: string
+        keyPoints:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - emailId
+        - category
+        - priorityScore
+        - urgency
+        - recommendedAction
+        - confidence
+        - reason
+
+    EmailWithDecision:
+      type: object
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        decision:
+          $ref: "#/components/schemas/AiDecision"
+      required:
+        - email
+
+    EmailListResponse:
+      type: object
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailWithDecision"
+        total:
+          type: number
+        hasMore:
+          type: boolean
+      required:
+        - emails
+        - total
+        - hasMore
+
+    InboxSummary:
+      type: object
+      properties:
+        needsActionCount:
+          type: number
+        paymentsCount:
+          type: number
+        criticalCount:
+          type: number
+        unreadCount:
+          type: number
+        categoryCounts:
+          type: object
+          additionalProperties:
+            type: number
+      required:
+        - needsActionCount
+        - paymentsCount
+        - criticalCount
+        - unreadCount
+        - categoryCounts
+
+    CreateDecisionRequest:
+      type: object
+      properties:
+        emailId:
+          type: string
+        forceRefresh:
+          type: boolean
+      required:
+        - emailId
+
+    LogActionRequest:
+      type: object
+      properties:
+        emailId:
+          type: string
+        action:
+          type: string
+          enum: [open, reply, ignore, archive, star, mark_read, override_decision]
+        decisionOverride:
+          type: string
+          enum: [reply, ignore, archive, track, read_later]
+        timeSpentMs:
+          type: number
+      required:
+        - emailId
+        - action
+
+    ActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        memoryUpdated:
+          type: boolean
+      required:
+        - success
+        - memoryUpdated
+
+    SyncStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [idle, syncing, error]
+        lastSyncAt:
+          type: string
+        emailsSynced:
+          type: number
+        message:
+          type: string
+      required:
+        - status
+        - emailsSynced
