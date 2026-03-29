@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db, emailsTable, aiDecisionsTable, senderMemoryTable } from "@workspace/db";
 import { CreateDecisionBody } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
-import { routeTask, callLocalLlm, allQueueStats, getCacheStats } from "../ai/index.js";
+import { routeTask, callLocalLlm, allQueueStats, getCacheStats, runSwarmAnalysis } from "../ai/index.js";
+import { callBestCloudProvider } from "../ai/cloud-providers.js";
 import { createTaskForEmail } from "../services/taskEngine.js";
 
 const router: IRouter = Router();
@@ -161,17 +161,9 @@ ${email.body || email.snippet}`;
       text = localResp.text;
       modelUsed = `local:${localResp.model}`;
     } else {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1,
-      });
-      text = response.choices[0]?.message?.content ?? "{}";
+      const cloudResp = await callBestCloudProvider(userMessage, systemPrompt);
+      text = cloudResp.text;
+      modelUsed = `cloud:${cloudResp.provider}:${cloudResp.model}`;
     }
 
     const cleaned = text.replace(/```json|```/g, "").trim();
@@ -192,18 +184,8 @@ ${email.body || email.snippet}`;
     // If local LLM failed and fallback is allowed, retry with cloud
     if (routing.tier === "local" && routing.fallbackAllowed) {
       try {
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          max_tokens: 600,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.1,
-        });
-        const text = response.choices[0]?.message?.content ?? "{}";
-        const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+        const cloudResp = await callBestCloudProvider(userMessage, systemPrompt);
+        const parsed = JSON.parse(cloudResp.text.replace(/```json|```/g, "").trim());
         return {
           category: parsed.category || email.baseCategory,
           priorityScore: Math.min(100, Math.max(0, parsed.priority_score ?? email.baseScore)),
@@ -213,7 +195,7 @@ ${email.body || email.snippet}`;
           reason: parsed.reason || "AI analysis complete (cloud fallback)",
           summary: parsed.summary || "",
           keyPoints: Array.isArray(parsed.key_points) ? parsed.key_points : [],
-          modelSource: "cloud:fallback",
+          modelSource: `cloud:${cloudResp.provider}:fallback`,
         };
       } catch {
         /* fall through */
@@ -285,18 +267,50 @@ async function runDecisionPipeline(email: {
 
   // Stage 3: Deep reason — only for high priority (score >= 55 or CRITICAL)
   if (baseScore >= 55 || baseCategory === "CRITICAL") {
-    const result = await deepReason({
-      subject: email.subject,
-      from: email.from,
-      fromEmail: email.fromEmail,
-      snippet: email.snippet,
-      body: email.body || "",
-      labels: email.labels,
-      baseCategory,
-      baseScore,
-      senderImportance: senderScore,
-    });
-    return result;
+    const baseAction = baseCategory === "CRITICAL" ? "reply" : "read_later";
+
+    // Run deep reasoning + swarm analysis in parallel
+    const [deepResult, swarmResult] = await Promise.allSettled([
+      deepReason({
+        subject: email.subject,
+        from: email.from,
+        fromEmail: email.fromEmail,
+        snippet: email.snippet,
+        body: email.body || "",
+        labels: email.labels,
+        baseCategory,
+        baseScore,
+        senderImportance: senderScore,
+      }),
+      runSwarmAnalysis(
+        {
+          subject: email.subject,
+          from: email.from,
+          fromEmail: email.fromEmail,
+          snippet: email.snippet,
+          body: email.body || "",
+        },
+        baseScore,
+        baseCategory,
+        baseAction
+      ),
+    ]);
+
+    const result = deepResult.status === "fulfilled" ? deepResult.value : {
+      category: baseCategory,
+      priorityScore: baseScore,
+      urgency: baseUrgency,
+      recommendedAction: baseAction,
+      confidence: 0.6,
+      reason: "Rule-based fallback",
+      summary: email.snippet,
+      keyPoints: [],
+      modelSource: "local:rules",
+    };
+
+    const swarm = swarmResult.status === "fulfilled" ? swarmResult.value : null;
+
+    return { ...result, swarm };
   }
 
   // Low priority — rule-based result only (no LLM cost)
@@ -319,6 +333,7 @@ async function runDecisionPipeline(email: {
     summary: email.snippet,
     keyPoints: [],
     modelSource: "local",
+    swarm: null,
   };
 }
 
@@ -362,7 +377,7 @@ router.post("/decisions", async (req, res) => {
       }
     }
 
-    const result = await runDecisionPipeline({
+    const pipelineResult = await runDecisionPipeline({
       id: email.id,
       subject: email.subject,
       from: email.from,
@@ -372,6 +387,8 @@ router.post("/decisions", async (req, res) => {
       labels: (email.labels as string[]) || [],
       receivedAt: email.receivedAt,
     });
+
+    const { swarm, ...result } = pipelineResult;
 
     const decisionId = randomUUID();
     const now = new Date();
@@ -404,6 +421,7 @@ router.post("/decisions", async (req, res) => {
       id: decisionId,
       emailId,
       ...result,
+      swarm: swarm ?? null,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     });
@@ -456,7 +474,7 @@ router.post("/decisions/batch", async (req, res) => {
     setImmediate(async () => {
       for (const email of toScore) {
         try {
-          const result = await runDecisionPipeline({
+          const pipelineResult = await runDecisionPipeline({
             id: email.id,
             subject: email.subject,
             from: email.from,
@@ -466,6 +484,7 @@ router.post("/decisions/batch", async (req, res) => {
             labels: (email.labels as string[]) || [],
             receivedAt: email.receivedAt,
           });
+          const { swarm: _swarm, ...result } = pipelineResult;
           const now = new Date();
           await db.insert(aiDecisionsTable).values({
             id: randomUUID(),
@@ -503,7 +522,7 @@ export async function batchScoreUnscored(): Promise<number> {
   let scored = 0;
   for (const email of toScore) {
     try {
-      const result = await runDecisionPipeline({
+      const pipelineResult = await runDecisionPipeline({
         id: email.id,
         subject: email.subject,
         from: email.from,
@@ -513,6 +532,7 @@ export async function batchScoreUnscored(): Promise<number> {
         labels: (email.labels as string[]) || [],
         receivedAt: email.receivedAt,
       });
+      const { swarm: _swarm2, ...result } = pipelineResult;
       const now = new Date();
       await db.insert(aiDecisionsTable).values({ id: randomUUID(), emailId: email.id, ...result, createdAt: now, updatedAt: now }).onConflictDoNothing();
       await db.update(emailsTable).set({ category: result.category, priorityScore: result.priorityScore, urgency: result.urgency, updatedAt: now }).where(eq(emailsTable.id, email.id));

@@ -9,6 +9,8 @@ export interface GpuStatus {
   memoryFree?: number;
   memoryTotal?: number;
   utilization?: number;
+  cudaAvailable?: boolean;
+  cudaDevice?: number;
 }
 
 export interface LocalLlmStatus {
@@ -21,6 +23,17 @@ let gpuCache: { status: GpuStatus; ts: number } | null = null;
 let llmCache: { status: LocalLlmStatus; ts: number } | null = null;
 const CACHE_TTL = 30_000;
 
+const CUDA_DEVICE = parseInt(process.env["CUDA_VISIBLE_DEVICES"] ?? "0");
+
+async function detectCudaAvailable(): Promise<boolean> {
+  try {
+    await execAsync("nvidia-smi -L", { timeout: 2000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function detectGpu(): Promise<GpuStatus> {
   if (gpuCache && Date.now() - gpuCache.ts < CACHE_TTL) return gpuCache.status;
 
@@ -30,17 +43,21 @@ export async function detectGpu(): Promise<GpuStatus> {
       { timeout: 3000 }
     );
     const parts = stdout.trim().split(", ");
+    const cudaAvailable = await detectCudaAvailable();
+
     const status: GpuStatus = {
       available: true,
       name: parts[0],
       memoryFree: parseInt(parts[1]) || undefined,
       memoryTotal: parseInt(parts[2]) || undefined,
       utilization: parseInt(parts[3]) || undefined,
+      cudaAvailable,
+      cudaDevice: cudaAvailable ? CUDA_DEVICE : undefined,
     };
     gpuCache = { status, ts: Date.now() };
     return status;
   } catch {
-    const status: GpuStatus = { available: false };
+    const status: GpuStatus = { available: false, cudaAvailable: false };
     gpuCache = { status, ts: Date.now() };
     return status;
   }
@@ -49,7 +66,7 @@ export async function detectGpu(): Promise<GpuStatus> {
 export async function detectLocalLlm(): Promise<LocalLlmStatus> {
   if (llmCache && Date.now() - llmCache.ts < CACHE_TTL) return llmCache.status;
 
-  const endpoint = process.env.OLLAMA_ENDPOINT || "http://localhost:11434";
+  const endpoint = process.env["OLLAMA_ENDPOINT"] || "http://localhost:11434";
 
   try {
     const resp = await fetch(`${endpoint}/api/tags`, { signal: AbortSignal.timeout(2000) });

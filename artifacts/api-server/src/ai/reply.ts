@@ -1,5 +1,5 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { routeTask, callLocalLlm } from "./index.js";
+import { callBestCloudProvider } from "./cloud-providers.js";
 import { getBestStrategy } from "../services/strategyMemory.js";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -224,18 +224,25 @@ export async function generateReply(
 
   // Cloud JSON mode
   if (!rawJson) {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: STRATEGIST_SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.75,
-      max_tokens: 1200,
-      response_format: { type: "json_object" },
-    });
-    rawJson = resp.choices[0]?.message?.content?.trim() || "{}";
-    modelUsed = "cloud:gpt-4o-mini";
+    try {
+      const cloudResp = await callBestCloudProvider(userPrompt, STRATEGIST_SYSTEM);
+      rawJson = cloudResp.text.trim() || "{}";
+      modelUsed = `cloud:${cloudResp.provider}:${cloudResp.model}`;
+    } catch {
+      const { openai } = await import("@workspace/integrations-openai-ai-server");
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: STRATEGIST_SYSTEM },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.75,
+        max_tokens: 1200,
+        response_format: { type: "json_object" },
+      });
+      rawJson = resp.choices[0]?.message?.content?.trim() || "{}";
+      modelUsed = "cloud:openai:gpt-4o-mini";
+    }
   }
 
   // Parse and validate
@@ -322,18 +329,29 @@ Output ONLY the reply text. No subject line. No greeting unless natural. No sign
     }
   }
 
-  const stream = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: streamPrompt }],
-    stream: true,
-    temperature: 0.7,
-    max_tokens: resolvedVariant === "concise" ? 80 : 300,
-  });
+  try {
+    const cloudResp = await callBestCloudProvider(streamPrompt);
+    const words = cloudResp.text.trim().split(" ");
+    for (const word of words) {
+      onChunk(word + " ");
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return { model: `cloud:${cloudResp.provider}:${cloudResp.model}` };
+  } catch {
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: streamPrompt }],
+      stream: true,
+      temperature: 0.7,
+      max_tokens: resolvedVariant === "concise" ? 80 : 300,
+    });
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content;
-    if (delta) onChunk(delta);
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) onChunk(delta);
+    }
+
+    return { model: "cloud:openai:gpt-4o-mini" };
   }
-
-  return { model: "cloud:gpt-4o-mini" };
 }

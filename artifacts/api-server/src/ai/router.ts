@@ -52,6 +52,42 @@ async function getModelProfile(modelId: string) {
   }
 }
 
+async function getBestLocalProfileId(): Promise<string> {
+  try {
+    const rows = await db
+      .select()
+      .from(modelProfilesTable)
+      .where(eq(modelProfilesTable.tier, "local"));
+
+    if (rows.length === 0) return "mistral-7b-local";
+
+    const sorted = rows.sort(
+      (a, b) => (b.qualityScore ?? 0) - (a.qualityScore ?? 0)
+    );
+    return sorted[0].modelId;
+  } catch {
+    return "mistral-7b-local";
+  }
+}
+
+async function getBestCloudProfileId(): Promise<string> {
+  const providers = ["groq", "gemini", "mistral", "openrouter", "gpt-4o-mini-cloud"];
+  const envMap: Record<string, string> = {
+    groq: "GROQ_API_KEY",
+    gemini: "GOOGLE_AI_API_KEY",
+    mistral: "MISTRAL_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+  };
+
+  for (const provider of providers) {
+    const envKey = envMap[provider];
+    if (!envKey || process.env[envKey]) {
+      return provider === "gpt-4o-mini-cloud" ? "gpt-4o-mini-cloud" : `${provider}-cloud`;
+    }
+  }
+  return "gpt-4o-mini-cloud";
+}
+
 export async function routeTask(
   task: TaskType,
   priorityScore: number,
@@ -84,9 +120,11 @@ export async function routeTask(
     }
 
     if (outcome_goal === "high_quality_reply" || outcome_goal === "deep_analysis") {
+      const bestLocalId = await getBestLocalProfileId();
+      const bestCloudId = await getBestCloudProfileId();
       const [localProfile, cloudProfile] = await Promise.all([
-        getModelProfile("mistral-7b-local"),
-        getModelProfile("gpt-4o-mini-cloud"),
+        getModelProfile(bestLocalId),
+        getModelProfile(bestCloudId),
       ]);
 
       if (cloudProfile && localProfile) {
@@ -122,7 +160,8 @@ export async function routeTask(
     }
 
     if (gpu.available && gpu.memoryFree !== undefined && gpu.memoryTotal !== undefined) {
-      const localProfile = await getModelProfile("mistral-7b-local");
+      const bestLocalId = await getBestLocalProfileId();
+      const localProfile = await getModelProfile(bestLocalId);
       if (localProfile?.vramRequiredMb && gpu.memoryFree < localProfile.vramRequiredMb) {
         return { tier: "cloud", reason: "advanced_routing_insufficient_vram", fallbackAllowed: true };
       }

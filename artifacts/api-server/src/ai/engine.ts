@@ -1,7 +1,7 @@
 import { routeTask, type TaskType } from "./router.js";
 import { callLocalLlm } from "./local-llm.js";
+import { callBestCloudProvider } from "./cloud-providers.js";
 import { localAiQueue, cloudAiQueue } from "./queue.js";
-import { openai } from "@workspace/integrations-openai-ai-server";
 import { db, outcomeSignalsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
@@ -102,14 +102,20 @@ Return ONLY valid JSON:
 }
 
 async function callCloud(prompt: string): Promise<string> {
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    temperature: 0.1,
-    max_tokens: 256,
-  });
-  return resp.choices[0]?.message?.content || "{}";
+  try {
+    const resp = await callBestCloudProvider(prompt);
+    return resp.text;
+  } catch {
+    const { openai } = await import("@workspace/integrations-openai-ai-server");
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 256,
+    });
+    return resp.choices[0]?.message?.content || "{}";
+  }
 }
 
 function parseAiJson(raw: string, modelUsed: "local" | "cloud"): AiOutput {

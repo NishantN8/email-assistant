@@ -2,13 +2,31 @@ import { type AiDecision } from "@workspace/api-client-react";
 import {
   Sparkles, ArrowRight, ThumbsUp, XCircle, CheckCircle2,
   Cpu, Cloud, User, TrendingUp, TrendingDown, Minus,
-  MessageSquare, Eye, VolumeX, Brain, Activity,
+  MessageSquare, Eye, VolumeX, Brain, Activity, ChevronDown, ChevronUp, Network,
 } from "lucide-react";
 import { cn, getScoreColor } from "@/lib/utils";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useSenderStats } from "@/hooks/use-sender-stats";
 import { useOutcome } from "@/hooks/use-outcome";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+
+interface SwarmAgentResult {
+  agent: string;
+  finding: string;
+  confidence: number;
+}
+
+interface SwarmResult {
+  agents: SwarmAgentResult[];
+  finalCategory: string;
+  finalPriorityScore: number;
+  finalAction: string;
+  votedConfidence: number;
+  modelUsed: string;
+}
+
+type AiDecisionWithSwarm = AiDecision & { swarm?: SwarmResult | null };
 
 const ACTION_LABELS: Record<string, string> = {
   reply: "Reply",
@@ -210,6 +228,96 @@ const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
   unknown: { label: "Unknown", color: "text-muted-foreground" },
 };
 
+function SwarmAnalysisPanel({ swarm }: { swarm: SwarmResult }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const AGENT_ICONS: Record<string, React.ReactNode> = {
+    "Intent Agent": <Brain className="w-3 h-3" />,
+    "Urgency Agent": <Activity className="w-3 h-3" />,
+    "Tone Agent": <MessageSquare className="w-3 h-3" />,
+    "Action Agent": <Sparkles className="w-3 h-3" />,
+    "Reply Quality Critic": <CheckCircle2 className="w-3 h-3" />,
+  };
+
+  return (
+    <div className="pt-3 border-t border-border/40 space-y-2">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center justify-between w-full group"
+      >
+        <div className="flex items-center gap-1.5">
+          <Network className="w-3 h-3 text-primary" />
+          <p className="text-[9px] font-bold uppercase tracking-widest text-primary">Swarm Analysis</p>
+          <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold">
+            {swarm.agents.length} agents
+          </span>
+        </div>
+        {expanded
+          ? <ChevronUp className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+          : <ChevronDown className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+        }
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-2 pt-1">
+              {swarm.agents.map((agent) => {
+                const confPct = Math.round(agent.confidence * 100);
+                const confColor =
+                  confPct >= 80 ? "text-green-400" :
+                  confPct >= 60 ? "text-yellow-400" :
+                  "text-muted-foreground";
+                return (
+                  <div
+                    key={agent.agent}
+                    className="rounded-lg bg-secondary/50 border border-border/30 p-2.5 space-y-1"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-primary">{AGENT_ICONS[agent.agent] ?? <Cpu className="w-3 h-3" />}</span>
+                        {agent.agent}
+                      </div>
+                      <span className={cn("text-[9px] font-bold tabular-nums", confColor)}>
+                        {confPct}%
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-foreground leading-relaxed">{agent.finding}</p>
+                    <div className="h-0.5 bg-border/40 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${confPct}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className={cn(
+                          "h-full rounded-full",
+                          confPct >= 80 ? "bg-green-400" : confPct >= 60 ? "bg-yellow-400" : "bg-muted-foreground"
+                        )}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                <span className="text-[9px] text-muted-foreground">Swarm consensus</span>
+                <span className="text-[9px] font-bold text-foreground">
+                  {Math.round(swarm.votedConfidence * 100)}% confidence
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function OutcomeInsights({ emailId }: { emailId: string }) {
   const { data: outcome, isLoading } = useOutcome(emailId);
 
@@ -249,7 +357,7 @@ export function AiDecisionCard({
   onReply,
   onArchive,
 }: {
-  decision: AiDecision;
+  decision: AiDecisionWithSwarm;
   emailId: string;
   compact?: boolean;
   onReply?: () => void;
@@ -319,11 +427,18 @@ export function AiDecisionCard({
         </div>
 
         {/* ── 5. OUTCOME INSIGHTS ── */}
-        <div className="flex-1 p-4">
+        <div className="p-4 border-b border-border/40">
           <OutcomeInsights emailId={emailId} />
         </div>
 
-        {/* ── 6. OVERRIDE (minimal) ── */}
+        {/* ── 6. SWARM ANALYSIS ── */}
+        {decision.swarm && (
+          <div className="p-4 border-b border-border/40">
+            <SwarmAnalysisPanel swarm={decision.swarm} />
+          </div>
+        )}
+
+        {/* ── 7. OVERRIDE (minimal) ── */}
         <div className="p-4 border-t border-border/40 flex gap-2">
           <button
             onClick={() => handleOverride("reply")}
@@ -419,6 +534,12 @@ export function AiDecisionCard({
               <div className="text-sm font-medium text-muted-foreground mb-1">Outcome Insights</div>
               <OutcomeInsights emailId={emailId} />
             </div>
+
+            {decision.swarm && (
+              <div>
+                <SwarmAnalysisPanel swarm={decision.swarm} />
+              </div>
+            )}
 
             <div>
               <div className="text-sm font-medium text-muted-foreground mb-3">Override AI</div>
