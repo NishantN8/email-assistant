@@ -10,6 +10,7 @@ import repliesRouter from "./replies";
 import settingsRouter from "./settings";
 import tasksRouter from "./tasks";
 import outcomeSignalsRouter from "./outcome-signals";
+import cleanupRouter from "./cleanup";
 
 const router: IRouter = Router();
 
@@ -22,10 +23,8 @@ router.use(syncRouter);
 router.use(aiStatusRouter);
 router.use(repliesRouter);
 router.use(settingsRouter);
-
-if (process.env["ENABLE_TASK_SYSTEM"] === "true") {
-  router.use(tasksRouter);
-}
+router.use(tasksRouter);
+router.use(cleanupRouter);
 
 if (process.env["ENABLE_OUTCOME_ENGINE"] === "true") {
   router.use(outcomeSignalsRouter);

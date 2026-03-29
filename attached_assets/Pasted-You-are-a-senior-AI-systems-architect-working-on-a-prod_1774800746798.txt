@@ -1,0 +1,319 @@
+You are a senior AI systems architect working on a production-grade system called InboxAI.
+
+You must implement an advanced **AI Spam & Cleanup Engine** integrated into the existing system WITHOUT breaking any current functionality.
+
+---
+
+# 🚨 CRITICAL RULES
+
+* DO NOT break existing Gmail sync, AI pipeline, or UI
+* DO NOT replace existing 3-stage pipeline
+* ONLY extend it safely
+* All heavy operations must be async or batched
+* Always prioritize avoiding false positives
+
+---
+
+# 🎯 OBJECTIVE
+
+Build a **one-click intelligent cleanup system** that:
+
+* detects spam, junk, promotions, and useless emails
+* allows bulk review before deletion
+* enables unsubscribe actions
+* learns from user behavior
+* integrates with AI scoring + GPU pipeline
+
+---
+
+# 🧠 ARCHITECTURE (EXTENSION OF EXISTING PIPELINE)
+
+Extend current pipeline:
+
+Stage 1 (existing): regex classifier
+Stage 2 (existing): scoring system
+Stage 3 (existing): LLM reasoning
+
+ADD:
+
+Stage 1.5 → Spam Heuristic Layer
+Stage 2.5 → ML Spam Classifier
+Stage 3.5 → LLM Spam Judge (GPU/Ollama)
+
+---
+
+# 🧠 1. SPAM HEURISTIC ENGINE
+
+Create:
+
+services/spamHeuristic.js
+
+Logic:
+
+* assign spam_score (0–100)
+
+Rules:
+
++30 → promotional keywords (sale, offer, discount)
++25 → unsubscribe link present
++20 → bulk email pattern (template similarity)
++15 → suspicious sender/domain
++10 → excessive links/images
++20 → no prior interaction
+-25 → user replied before
+-30 → trusted sender
+
+If spam_score > 70 → mark as likely spam
+
+---
+
+# 🧠 2. ML SPAM CLASSIFIER
+
+Create:
+
+services/spamClassifier.js
+
+Use lightweight model:
+
+* Naive Bayes / logistic regression (fast inference)
+
+Features:
+
+* subject tokens
+* sender domain frequency
+* email length
+* link count
+* historical interaction
+
+Output:
+
+{
+spam_probability: 0–1
+}
+
+---
+
+# 🧠 3. LLM SPAM JUDGE (GPU-FIRST)
+
+Trigger ONLY if:
+
+* heuristic + ML confidence < threshold
+
+Use Ollama (GPU):
+
+Prompt:
+
+{
+"is_spam": true/false,
+"category": "promotion | scam | newsletter | irrelevant",
+"reason": "...",
+"confidence": 0–1
+}
+
+Use OpenAI ONLY if:
+
+* CRITICAL ambiguity
+
+---
+
+# 🧠 4. FINAL DECISION ENGINE
+
+Combine:
+
+final_score = weighted(
+heuristic_score,
+ml_probability,
+llm_confidence
+)
+
+Decision:
+
+> 85 → DELETE
+> 70–85 → JUNK
+> 50–70 → BUNDLE (collapse UI)
+> <50 → KEEP
+
+---
+
+# 🧠 5. BULK CLEANUP ENGINE
+
+Create:
+
+services/cleanupEngine.js
+
+Function:
+
+getCleanupCandidates(userId)
+
+Returns:
+
+* emails with score > threshold
+* grouped by:
+
+  * promotions
+  * newsletters
+  * spam
+
+---
+
+# 🧠 6. ACTION UI (CRITICAL FEATURE)
+
+Add new UI component:
+
+### 🔥 “Smart Cleanup Panel”
+
+Placement:
+
+* Top of inbox OR floating CTA
+
+---
+
+### UI Behavior:
+
+Button:
+
+🧹 “Clean Inbox (AI Suggested)”
+
+---
+
+### On click:
+
+Show modal:
+
+---
+
+🧠 AI Cleanup Suggestions
+
+[ ] 32 Promotional Emails
+[ ] 18 Newsletters
+[ ] 9 Likely Spam
+
+---
+
+Each email:
+
+☑ checkbox
+Sender
+Subject
+Preview
+[Unsubscribe] button
+
+---
+
+### Actions:
+
+* Delete Selected
+* Move to Junk
+* Unsubscribe All Selected
+
+---
+
+# 🧠 7. UNSUBSCRIBE ENGINE
+
+Create:
+
+services/unsubscribeEngine.js
+
+Logic:
+
+* detect unsubscribe link (from email body)
+* extract URL
+* send HTTP request OR open redirect link
+
+Fallback:
+
+* generate unsubscribe email reply
+
+---
+
+# 🧠 8. USER CONTROL + SAFETY
+
+* NOTHING auto-deleted without user confirmation
+* default = pre-selected but editable
+* undo option (important)
+
+---
+
+# 🧠 9. LEARNING LOOP
+
+Track:
+
+* user unchecks email → reduce spam score
+* user deletes → increase spam confidence
+* user unsubscribes → mark sender as low priority
+
+Store in:
+
+user_actions / sender_memory
+
+---
+
+# 🧠 10. GPU + PERFORMANCE ALIGNMENT
+
+* Run LLM spam judge on:
+
+  * local Ollama GPU
+* Batch processing for cleanup
+* Limit LLM calls (only uncertain cases)
+
+---
+
+# 🧠 11. API ENDPOINTS
+
+GET /api/cleanup/candidates
+POST /api/cleanup/execute
+POST /api/unsubscribe
+POST /api/spam/feedback
+
+---
+
+# 🧠 12. DB ADDITIONS
+
+CREATE TABLE spam_scores (
+email_id TEXT,
+heuristic_score FLOAT,
+ml_score FLOAT,
+llm_score FLOAT,
+final_score FLOAT,
+category TEXT
+);
+
+---
+
+# 🧠 13. INTEGRATION POINTS
+
+* hook after Stage 2 scoring
+* store spam_score in ai_decisions
+* expose in UI badges
+
+---
+
+# 🧠 14. UX PRINCIPLE
+
+DO NOT overwhelm user
+
+* show only high-confidence cleanup
+* bundle low-value emails
+* give full control
+
+---
+
+# 🎯 FINAL GOAL
+
+System should:
+
+* remove 80–90% inbox noise in one click
+* NEVER delete important emails
+* continuously improve
+
+---
+
+You are NOT building a spam filter.
+
+You are building:
+
+→ an intelligent inbox cleanup system
+→ that thinks, suggests, and learns
+→ while keeping the user in control
+
+Proceed safely and modularly.

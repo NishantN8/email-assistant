@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { Zap, CheckCircle2, Clock, ArrowRight, Inbox } from "lucide-react";
+import { Zap, CheckCircle2, Clock, ArrowRight, Inbox, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const getApiUrl = (path: string) => `${BASE}/api/${path}`;
@@ -41,7 +43,11 @@ function TaskCard({ task, onStatusChange }: { task: Task; onStatusChange: (id: s
   const StatusIcon = statusInfo.icon;
 
   return (
-    <div className={cn("rounded-xl border p-4 bg-card/50 flex flex-col gap-3", statusInfo.color.includes("red") ? "border-red-400/10" : statusInfo.color.includes("yellow") ? "border-yellow-400/10" : "border-green-400/10")}>
+    <div className={cn(
+      "rounded-xl border p-4 bg-card/50 flex flex-col gap-3",
+      statusInfo.color.includes("red") ? "border-red-400/10" :
+      statusInfo.color.includes("yellow") ? "border-yellow-400/10" : "border-green-400/10"
+    )}>
       <div className="flex items-start gap-3">
         <div className={cn("p-1.5 rounded-lg border shrink-0", statusInfo.color)}>
           <StatusIcon className="w-3.5 h-3.5" />
@@ -52,7 +58,7 @@ function TaskCard({ task, onStatusChange }: { task: Task; onStatusChange: (id: s
               {ACTION_TYPE_LABELS[task.actionType] ?? task.actionType}
             </span>
             <span className="text-[9px] font-mono text-muted-foreground">
-              Priority: {task.priority}
+              P{task.priority}
             </span>
           </div>
           <p className="text-sm font-medium text-foreground leading-snug">{task.taskText}</p>
@@ -106,7 +112,7 @@ function TaskGroup({ title, tasks, statusConfig, onStatusChange }: {
   const StatusIcon = statusConfig.icon;
   return (
     <div>
-      <div className={cn("flex items-center gap-2 mb-3 px-1")}>
+      <div className="flex items-center gap-2 mb-3 px-1">
         <StatusIcon className={cn("w-4 h-4", statusConfig.color.split(" ")[0])} />
         <h2 className="text-sm font-bold text-foreground">{title}</h2>
         <span className="text-[10px] font-bold text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
@@ -130,22 +136,42 @@ function TaskGroup({ title, tasks, statusConfig, onStatusChange }: {
 
 export default function ActionFeed() {
   const queryClient = useQueryClient();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const statusFilter = (new URLSearchParams(window.location.search).get("status") as TaskStatus | null) ?? undefined;
   const validStatuses: TaskStatus[] = ["needs_action", "in_progress", "done"];
   const activeFilter = statusFilter && validStatuses.includes(statusFilter) ? statusFilter : undefined;
 
-  const { data, isLoading } = useQuery<{ tasks: Task[]; total: number; disabled?: boolean }>({
+  const { data, isLoading, refetch } = useQuery<{ tasks: Task[]; total: number }>({
     queryKey: ["tasks", activeFilter],
     queryFn: async () => {
       const url = activeFilter ? getApiUrl(`tasks?status=${activeFilter}`) : getApiUrl("tasks");
       const res = await fetch(url, { credentials: "include" });
-      if (res.status === 404) return { tasks: [], total: 0, disabled: true };
       if (!res.ok) throw new Error("Failed to fetch tasks");
       return res.json();
     },
     refetchInterval: 30_000,
-    retry: false,
+    retry: 1,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(getApiUrl("tasks/generate"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to generate tasks");
+      return res.json();
+    },
+    onSuccess: (result) => {
+      toast.success(`Generated ${result.processed} tasks from your inbox`);
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      refetch();
+    },
+    onError: () => {
+      toast.error("Failed to generate tasks");
+    },
   });
 
   const updateStatus = useMutation({
@@ -153,6 +179,7 @@ export default function ActionFeed() {
       const res = await fetch(getApiUrl(`tasks/${taskId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error("Failed to update task");
@@ -174,11 +201,22 @@ export default function ActionFeed() {
     updateStatus.mutate({ taskId, status });
   };
 
+  const isGenerating = generateMutation.isPending;
+
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar />
-      <main className="flex-1 lg:pl-64 overflow-y-auto">
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((v) => !v)}
+      />
+      <main
+        className={cn(
+          "flex-1 overflow-y-auto transition-[padding] duration-200",
+          sidebarCollapsed ? "lg:pl-14" : "lg:pl-64"
+        )}
+      >
         <div className="max-w-2xl mx-auto px-4 py-8">
+          {/* Header */}
           <div className="flex items-center gap-3 mb-8">
             <div className="w-9 h-9 rounded-xl bg-yellow-500/15 border border-yellow-500/20 flex items-center justify-center">
               <Zap className="w-5 h-5 text-yellow-400" />
@@ -188,35 +226,62 @@ export default function ActionFeed() {
                 {activeFilter ? (STATUS_CONFIG[activeFilter]?.label ?? "Action Feed") : "Action Feed"}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {activeFilter ? `Filtered by status` : "AI-generated tasks from your inbox"}
+                {activeFilter ? "Filtered by status" : "AI-generated tasks from your inbox"}
               </p>
             </div>
-            <div className="ml-auto text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-lg">
-              {tasks.length} total
+            <div className="ml-auto flex items-center gap-2">
+              <div className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-lg">
+                {tasks.length} total
+              </div>
+              <button
+                onClick={() => refetch()}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              {tasks.length > 0 && (
+                <button
+                  onClick={() => generateMutation.mutate()}
+                  disabled={isGenerating}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/20 text-violet-400 text-[10px] font-bold uppercase tracking-wide transition-colors disabled:opacity-50"
+                >
+                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  Re-scan
+                </button>
+              )}
             </div>
           </div>
 
+          {/* Content */}
           {isLoading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-24 rounded-xl bg-secondary/50 animate-pulse" />
               ))}
             </div>
-          ) : data?.disabled ? (
-            <div className="text-center py-16">
-              <Zap className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-30" />
-              <p className="text-sm text-muted-foreground">Task system is not enabled.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Enable ENABLE_TASK_SYSTEM to start generating AI tasks from your inbox.
-              </p>
-            </div>
           ) : tasks.length === 0 ? (
-            <div className="text-center py-16">
-              <Inbox className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-40" />
-              <p className="text-sm text-muted-foreground">No tasks yet.</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tasks are generated automatically when your inbox syncs.
-              </p>
+            <div className="text-center py-16 space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto">
+                <Zap className="w-8 h-8 text-yellow-400/60" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-1">No tasks yet</p>
+                <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                  Scan your inbox to auto-generate actionable tasks from your emails using AI.
+                </p>
+              </div>
+              <button
+                onClick={() => generateMutation.mutate()}
+                disabled={isGenerating}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-60 shadow-md shadow-yellow-500/20 mx-auto"
+              >
+                {isGenerating ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Scanning inbox…</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Generate Tasks from Inbox</>
+                )}
+              </button>
             </div>
           ) : (
             <div className="space-y-8">

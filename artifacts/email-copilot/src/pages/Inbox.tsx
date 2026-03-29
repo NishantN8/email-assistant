@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { AiDecisionCard } from "@/components/AiDecisionCard";
 import { ReplyBox, ReplyModeOptions } from "@/components/ReplyBox";
 import { SmartStatsBar } from "@/components/SmartStatsBar";
+import { CleanupPanel } from "@/components/CleanupPanel";
 import { useEmailActions } from "@/hooks/use-emails";
 import { useSenderStats } from "@/hooks/use-sender-stats";
 import { useEmailTaskMap } from "@/hooks/use-task";
@@ -16,7 +17,7 @@ import {
   MoreHorizontal, Forward, Keyboard, X,
   ChevronDown, ChevronRight, ChevronUp, ChevronLeft, Cpu, Cloud, Zap,
   Brain, Sparkles, Star, Users, Filter, TrendingUp, VolumeX, Eye, Minus,
-  MessageSquare, Send, MailOpen, AlertOctagon,
+  MessageSquare, Send, MailOpen, AlertOctagon, BrushCleaning,
 } from "lucide-react";
 import { formatTimeAgo } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -807,6 +808,8 @@ export default function Inbox() {
   const [aiPanelWidth, setAiPanelWidth] = useState(288);
   // AI panel reply trigger (incremented to trigger reply in detail panel)
   const [replyTrigger, setReplyTrigger] = useState(0);
+  // Cleanup panel
+  const [showCleanup, setShowCleanup] = useState(false);
 
   const emails = useMemo(() => response?.emails ?? [], [response]);
 
@@ -1014,13 +1017,23 @@ export default function Inbox() {
                 </button>
               )}
             </div>
-            <button
-              onClick={() => setShowShortcuts((v) => !v)}
-              className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
-              title="Keyboard shortcuts"
-            >
-              <Keyboard className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setShowCleanup(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/20 text-violet-400 text-[10px] font-bold uppercase tracking-wide transition-colors"
+                title="Smart Cleanup - AI inbox cleaning"
+              >
+                <BrushCleaning className="w-3.5 h-3.5" />
+                Clean Inbox
+              </button>
+              <button
+                onClick={() => setShowShortcuts((v) => !v)}
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+                title="Keyboard shortcuts"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">AI-sorted by importance</p>
         </div>
@@ -1204,6 +1217,13 @@ export default function Inbox() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* ── Smart Cleanup Panel ── */}
+      <AnimatePresence>
+        {showCleanup && (
+          <CleanupPanel onClose={() => setShowCleanup(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
