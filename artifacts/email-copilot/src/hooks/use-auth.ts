@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useCallback } from "react";
 
 interface AuthUser {
   id: string;
@@ -19,12 +20,14 @@ async function fetchMe(): Promise<MeResponse> {
   return res.json();
 }
 
-async function logout(): Promise<void> {
+async function logoutFn(): Promise<void> {
   await fetch(`${BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
 }
 
 export function useAuth() {
   const queryClient = useQueryClient();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const popupRef = useRef<Window | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-me"],
@@ -34,16 +37,58 @@ export function useAuth() {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: logout,
+    mutationFn: logoutFn,
     onSuccess: () => {
       queryClient.setQueryData(["auth-me"], { user: null });
       queryClient.invalidateQueries();
     },
   });
 
-  const connectGmail = () => {
-    window.location.href = `${BASE}/api/auth/google`;
-  };
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const connectGmail = useCallback(() => {
+    const oauthUrl = `${window.location.origin}${BASE}/api/auth/google`;
+
+    const popup = window.open(
+      oauthUrl,
+      "gmail-oauth",
+      "width=520,height=640,scrollbars=yes,resizable=yes"
+    );
+
+    if (!popup) {
+      window.location.href = oauthUrl;
+      return;
+    }
+
+    popupRef.current = popup;
+
+    pollRef.current = setInterval(async () => {
+      if (!popup || popup.closed) {
+        stopPolling();
+        return;
+      }
+      try {
+        const res = await fetch(`${BASE}/api/auth/me`, { credentials: "include" });
+        if (res.ok) {
+          const json: MeResponse = await res.json();
+          if (json.user) {
+            stopPolling();
+            popup.close();
+            queryClient.setQueryData(["auth-me"], json);
+            queryClient.invalidateQueries({ queryKey: ["emails"] });
+            queryClient.invalidateQueries({ queryKey: ["sync-status"] });
+          }
+        }
+      } catch {
+        // network hiccup — keep polling
+      }
+    }, 1500);
+  }, [queryClient, stopPolling]);
 
   return {
     user: data?.user ?? null,
